@@ -19,21 +19,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-FetchContent_Declare(
-    Sodium
-    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
-    GIT_TAG e5b985ad0dd235d8c4307ea3a385b45e76c74c6a  # Last updated at 2025-04-13 
-)
-
-set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
-set(SODIUM_STATIC ON CACHE BOOL "" FORCE)
-
-FetchContent_MakeAvailable(Sodium)
-
 # ---------------------------------------------------------
-# macOS: Build universal (ARM + x86_64)
+# macOS: Force architecture before fetching dependencies
 # ---------------------------------------------------------
 if(APPLE)
+    # Build universal (arm64 + x86_64), or limit to one arch if you prefer
+    # e.g., set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "" FORCE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures" FORCE)
 endif()
 
@@ -43,9 +34,29 @@ endif()
 if(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
-    add_compile_options(-Wall -Wextra -Wpedantic -std=c++20)
+    add_compile_options(-Wall -Wextra -Wpedantic)
     add_link_options(-pthread)
 endif()
+
+# ---------------------------------------------------------
+# Fetch libsodium (after arch and platform settings)
+# ---------------------------------------------------------
+FetchContent_Declare(
+    Sodium
+    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+    GIT_TAG e5b985ad0dd235d8c4307ea3a385b45e76c74c6a  # Last updated at 2025-04-13
+)
+
+set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+set(SODIUM_STATIC ON CACHE BOOL "" FORCE)
+
+# Forward architecture and build type to subproject
+set(SODIUM_CMAKE_ARGS
+    -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+)
+
+FetchContent_MakeAvailable(Sodium)
 
 # ---------------------------------------------------------
 # Output directories

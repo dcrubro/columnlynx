@@ -43,4 +43,18 @@ namespace ColumnLynx::Utils {
     unsigned short serverPort() {
         return 48042;
     }
+
+    std::string bytesToHexString(const uint8_t* bytes, size_t length) {
+        const char hexChars[] = "0123456789ABCDEF";
+        std::string hexString;
+        hexString.reserve(length * 2);
+
+        for (size_t i = 0; i < length; ++i) {
+            uint8_t byte = bytes[i];
+            hexString.push_back(hexChars[(byte >> 4) & 0x0F]);
+            hexString.push_back(hexChars[byte & 0x0F]);
+        }
+
+        return hexString;
+    }
 }

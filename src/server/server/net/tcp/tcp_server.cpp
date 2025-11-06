@@ -23,7 +23,8 @@ namespace ColumnLynx::Net::TCP {
         mAcceptor.async_accept(
             [this](asio::error_code ec, asio::ip::tcp::socket socket) {
                 if (!NetHelper::isExpectedDisconnect(ec)) {
-                    auto client = TCPConnection::create(std::move(socket), mSodiumWrapper,
+                    auto client = TCPConnection::create(std::move(socket),
+                        mSodiumWrapper,
                         [this](std::shared_ptr<TCPConnection> c) {
                             mClients.erase(c);
                             Utils::log("Client removed.");

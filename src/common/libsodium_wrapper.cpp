@@ -11,24 +11,29 @@ namespace ColumnLynx::Utils {
             throw std::runtime_error("Failed to initialize libsodium");
         }
 
-        if (crypto_kx_keypair(mPublicKey, mPrivateKey) != 0) {
+        // Generate keypair
+        if (crypto_sign_keypair(mPublicKey.data(), mPrivateKey.data()) != 0) {
             throw std::runtime_error("Failed to generate key pair");
         }
+
+        // Convert to Curve25519 keys for encryption
+        crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
+        crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
 
         log("Libsodium initialized and keypair generated");
     }
 
     uint8_t* LibSodiumWrapper::getPublicKey() {
-        return mPublicKey;
+        return mPublicKey.data();
     }
 
     uint8_t* LibSodiumWrapper::getPrivateKey() {
-        return mPrivateKey;
+        return mPrivateKey.data();
     }
 
-    uint8_t LibSodiumWrapper::generateRandomAESKey() {
-        uint8_t aesKey[32]; // 256-bit key
-        randombytes_buf(aesKey, sizeof(aesKey));
-        return *aesKey;
+    std::array<uint8_t, 32> LibSodiumWrapper::generateRandom256Bit() {
+        std::array<uint8_t, 32> randbytes; // 256 bits
+        randombytes_buf(randbytes.data(), randbytes.size());
+        return randbytes;
     }
 }

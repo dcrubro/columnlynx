@@ -22,4 +22,17 @@ namespace ColumnLynx::Utils {
     std::string getHostname();
     std::string getVersion();
     unsigned short serverPort();
+
+    // Raw byte to hex string conversion helper
+    std::string bytesToHexString(const uint8_t* bytes, size_t length);
+
+    // uint8_t to raw string conversion helper
+    template <size_t N>
+    inline std::string uint8ArrayToString(const std::array<uint8_t, N>& arr) {
+        return std::string(reinterpret_cast<const char*>(arr.data()), N);
+    }
+
+    inline std::string uint8ArrayToString(const uint8_t* data, size_t length) {
+        return std::string(reinterpret_cast<const char*>(data), length);
+    }
 };

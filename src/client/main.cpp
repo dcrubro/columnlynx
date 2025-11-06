@@ -32,8 +32,10 @@ int main(int argc, char** argv) {
     PanicHandler::init();
 
     try {
+        LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
+
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, "127.0.0.1", std::to_string(serverPort()));
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, "127.0.0.1", std::to_string(serverPort()), &sodiumWrapper);
 
         client->start();
 

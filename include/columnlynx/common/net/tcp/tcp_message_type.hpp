@@ -11,7 +11,7 @@ namespace ColumnLynx::Net::TCP {
     enum class ServerMessageType : uint8_t { // Server to Client
         HANDSHAKE_IDENTIFY  = 0x02, // Send server identity (public key, server name, etc)
         HANDSHAKE_CHALLENGE_RESPONSE = 0x04, // Response to client's challenge
-        HANDSHAKE_EXCHANGE_KEY = 0x06, // If accepted, send encrypted AES key and session ID
+        HANDSHAKE_EXCHANGE_KEY_CONFIRM = 0x06, // If accepted, send encrypted AES key and session ID
 
         GRACEFUL_DISCONNECT = 0xFE, // Notify client of impending disconnection
         KILL_CONNECTION    = 0xFF, // Forecefully terminate the connection (with cleanup if possible), reserved for unrecoverable errors
@@ -20,8 +20,7 @@ namespace ColumnLynx::Net::TCP {
     enum class ClientMessageType : uint8_t { // Client to Server
         HANDSHAKE_INIT      = 0xA1, // Request connection
         HANDSHAKE_CHALLENGE = 0xA3, // Challenge ownership of private key
-        HANDSHAKE_CONFIRM   = 0xA5, // Accept or reject identity, can kill the connection
-        HANDSHAKE_EXCHANGE_KEY_CONFIRM = 0xA7, // Confirm receipt of AES key and session ID
+        HANDSHAKE_EXCHANGE_KEY   = 0xA5, // Accept or reject identity, can kill the connection, also sends the AES key
 
         GRACEFUL_DISCONNECT = 0xFE, // Notify server of impending disconnection
         KILL_CONNECTION    = 0xFF, // Forecefully terminate the connection (with cleanup if possible), reserved for unrecoverable errors

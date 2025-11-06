@@ -21,9 +21,11 @@ int main(int argc, char** argv) {
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
+        log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
+        log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
 
         asio::io_context io;
-        auto server = std::make_shared<TCPServer>(io, serverPort());
+        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper);
 
         // Run the IO context in a separate thread
         std::thread ioThread([&io]() {
