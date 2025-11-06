@@ -1,0 +1,103 @@
+cmake_minimum_required(VERSION 3.16)
+
+# Version structure:
+# MAJOR.MINOR.PATCH
+# If MAJOR is 0, and MINOR is 0, Version is ALPHA
+# If MAJOR is 0, and MINOR > 0, Version is BETA
+
+project(ColumnLynx
+    VERSION 0.0.1
+    LANGUAGES CXX
+)
+
+# ---------------------------------------------------------
+# General C++ setup
+# ---------------------------------------------------------
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(FetchContent)
+
+FetchContent_Declare(
+    Sodium
+    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+    GIT_TAG e5b985ad0dd235d8c4307ea3a385b45e76c74c6a  # Last updated at 2025-04-13 
+)
+
+set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+set(SODIUM_STATIC ON CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(Sodium)
+
+# ---------------------------------------------------------
+# macOS: Build universal (ARM + x86_64)
+# ---------------------------------------------------------
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures" FORCE)
+endif()
+
+# ---------------------------------------------------------
+# Platform-specific options
+# ---------------------------------------------------------
+if(WIN32)
+    add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
+elseif(UNIX)
+    add_compile_options(-Wall -Wextra -Wpedantic -std=c++20)
+    add_link_options(-pthread)
+endif()
+
+# ---------------------------------------------------------
+# Output directories
+# ---------------------------------------------------------
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+foreach(OUTPUTCONFIG DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} ${CMAKE_BINARY_DIR}/bin)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} ${CMAKE_BINARY_DIR}/lib)
+endforeach()
+
+# ---------------------------------------------------------
+# Common static library (shared code)
+# ---------------------------------------------------------
+file(GLOB_RECURSE COMMON_SRC CONFIGURE_DEPENDS src/common/*.cpp)
+add_library(common STATIC ${COMMON_SRC})
+target_link_libraries(common PUBLIC sodium)
+target_include_directories(common PUBLIC 
+    ${PROJECT_SOURCE_DIR}/include 
+    ${sodium_SOURCE_DIR}/src/libsodium/include
+    ${sodium_BINARY_DIR}/src/libsodium/include
+)
+target_compile_definitions(common PUBLIC ASIO_STANDALONE)
+
+# ---------------------------------------------------------
+# Client executable
+# ---------------------------------------------------------
+file(GLOB_RECURSE CLIENT_SRC CONFIGURE_DEPENDS src/client/*.cpp)
+add_executable(client ${CLIENT_SRC})
+target_link_libraries(client PRIVATE common sodium)
+target_include_directories(client PRIVATE 
+    ${PROJECT_SOURCE_DIR}/include 
+    ${sodium_SOURCE_DIR}/src/libsodium/include
+    ${sodium_BINARY_DIR}/src/libsodium/include
+)
+target_compile_definitions(client PRIVATE ASIO_STANDALONE)
+set_target_properties(client PROPERTIES OUTPUT_NAME "columnlynx_client")
+
+# ---------------------------------------------------------
+# Server executable
+# ---------------------------------------------------------
+file(GLOB_RECURSE SERVER_SRC CONFIGURE_DEPENDS src/server/*.cpp)
+add_executable(server ${SERVER_SRC})
+target_link_libraries(server PRIVATE common sodium)
+target_include_directories(server PRIVATE 
+    ${PROJECT_SOURCE_DIR}/include 
+    ${sodium_SOURCE_DIR}/src/libsodium/include
+    ${sodium_BINARY_DIR}/src/libsodium/include
+)
+target_compile_definitions(server PRIVATE ASIO_STANDALONE)
+set_target_properties(server PROPERTIES OUTPUT_NAME "columnlynx_server")
