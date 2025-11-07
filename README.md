@@ -10,9 +10,16 @@ It operates on port **48042** for both TCP and UDP.
 
 ## Packet Structure
 
+These are the general packet structures for both the TCP and UDP sides of the protocol. Generally **headers** are **plain-text (unencrypted)** and do not contain any sensitive data. 
+
+
+The **data / payload** section is:
+- For **TCP**: **encrypted** or **plain-text** depending on the **packet type** (packets with **sensitive data** are **encrypted**)
+- For **UDP**: **encrypted**, as they're transfering the actual data
+
 ### TCP Packets
 
-TCP Packets generally follow the structure **Packet ID + Data**
+TCP Packets generally follow the structure **Packet ID + Data**. They're only used for the **inital handshake** and **commands sent between the client and server**.
 
 #### Packet ID
 
@@ -20,14 +27,30 @@ The **Packet ID** is an **8 bit unsigned integer** that is predefined from eithe
 
 **Server to Client** IDs are always below **0xA0** (exclusive) and **Client to Server** IDs are always above **0xA0** (exclusive). **0xFE** and **OxFF** are shared for **GRACEFUL_DISCONNECT** and **KILL_CONNECTION** respectively.
 
-
 #### Data
 
 The data section is unspecified. It may change depending on the **Packet ID**. It is encoded as a **raw byte array**
 
+#### Final General Structure
+
+| Type | Length | Name | Description |
+|:-----|:-------|:-----|:------------|
+| uint8_t | 1 byte | **Header** - Packet Type | General type of packet |
+| uint8_t/byte array | variable | Data | General packet data - changes for packet to packet |
+
 ### UDP Packets
 
-*WIP, fill in later*
+**UDP Packets** follow the same general structure of **Packet ID + Data**, however, they are **encrypted in full** with the exchanged AES key. This is done to prevent any metadata leakage by either the client or the server.
+
+The **Data** is generally just the **raw underlying packet** forwarded to the server/client.
+
+#### Final General Structure
+
+| Type | Length | Name | Description |
+|:-----|:-------|:-----|:------------|
+| uint8_t | 12 bytes | **Header** - Nonce | Random nonce to obfuscate encrypted contents |
+| uint64_t | 8 bytes | **Header** - Session ID | The unique and random session identifier for the client |
+| uint8_t | variable | Data | General data / payload |
 
 ## Legal
 
@@ -49,6 +72,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 DcruBro is the online pseudonym of Jonas Korene Novak. Both refer to the same individual and may be used interchangeably for copyright attribution purposes.
 
 ### Licensing
+
+*See **ATTRIBUTIONS.md** for details.*
 
 This project includes the [ASIO C++ Library](https://think-async.com/Asio/),
 distributed under the [Boost Software License, Version 1.0](https://www.boost.org/LICENSE_1_0.txt).

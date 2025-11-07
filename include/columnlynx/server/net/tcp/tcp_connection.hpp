@@ -15,6 +15,7 @@
 #include <columnlynx/common/net/tcp/tcp_message_handler.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
+#include <columnlynx/common/net/session_registry.hpp>
 
 namespace ColumnLynx::Net::TCP {
     class TCPConnection : public std::enable_shared_from_this<TCPConnection> {
@@ -69,6 +70,14 @@ namespace ColumnLynx::Net::TCP {
                 if (mOnDisconnect) {
                     mOnDisconnect(shared_from_this());
                 }
+            }
+
+            uint64_t getSessionID() const {
+                return mConnectionSessionID;
+            }
+
+            std::array<uint8_t, 32> getAESKey() const {
+                return mConnectionAESKey;
             }
         
         private:
@@ -140,6 +149,8 @@ namespace ColumnLynx::Net::TCP {
                             // Make a Session ID
                             randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
 
+                            // TODO: Make the session ID little-endian for network transmission
+
                             // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                             Nonce symNonce{}; // All zeros
                             std::vector<uint8_t> encryptedSessionID = Utils::LibSodiumWrapper::encryptMessage(
@@ -148,6 +159,11 @@ namespace ColumnLynx::Net::TCP {
                             );
 
                             mHandler->sendMessage(ServerMessageType::HANDSHAKE_EXCHANGE_KEY_CONFIRM, Utils::uint8ArrayToString(encryptedSessionID.data(), encryptedSessionID.size()));
+
+                            // Add to session registry
+                            Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned.");
+                            auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12));
+                            SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
 
                         } catch (const std::exception& e) {
                             Utils::error("Failed to decrypt HANDSHAKE_EXCHANGE_KEY from " + reqAddr + ": " + e.what());

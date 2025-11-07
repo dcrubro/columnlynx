@@ -7,11 +7,14 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
+#include <columnlynx/server/net/udp/udp_server.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
+#include <unordered_set>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net::TCP;
+using namespace ColumnLynx::Net::UDP;
 
 int main(int argc, char** argv) {
     PanicHandler::init();
@@ -26,6 +29,7 @@ int main(int argc, char** argv) {
 
         asio::io_context io;
         auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort());
 
         // Run the IO context in a separate thread
         std::thread ioThread([&io]() {

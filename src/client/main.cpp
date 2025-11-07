@@ -8,6 +8,7 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
+#include <columnlynx/client/net/udp/udp_client.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
@@ -34,10 +35,15 @@ int main(int argc, char** argv) {
     try {
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
+        std::array<uint8_t, 32> aesKey = {0}; // Defualt zeroed state until modified by handshake
+        uint64_t sessionID = 0;
+
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, "127.0.0.1", std::to_string(serverPort()), &sodiumWrapper);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, "127.0.0.1", std::to_string(serverPort()), &sodiumWrapper, &aesKey, &sessionID);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, "127.0.0.1", std::to_string(serverPort()), &aesKey, &sessionID);
 
         client->start();
+        udpClient->start();
 
         // Run the IO context in a separate thread
         std::thread ioThread([&io]() {
@@ -50,6 +56,16 @@ int main(int argc, char** argv) {
         // Client is running
         while (!done) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
+
+            if (client->isHandshakeComplete()) {
+                // Send a test UDP message every 5 seconds after handshake is complete
+                static auto lastSendTime = std::chrono::steady_clock::now();
+                auto now = std::chrono::steady_clock::now();
+                if (std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count() >= 5) {
+                    udpClient->sendMessage("Hello from UDP client!");
+                    lastSendTime = now;
+                }
+            }
         }
         log("Client shutting down.");
         client->disconnect();

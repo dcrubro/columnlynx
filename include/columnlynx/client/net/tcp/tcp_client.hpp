@@ -22,8 +22,10 @@ namespace ColumnLynx::Net::TCP {
             TCPClient(asio::io_context& ioContext,
                       const std::string& host,
                       const std::string& port,
-                      Utils::LibSodiumWrapper* sodiumWrapper)
-                : mResolver(ioContext), mSocket(ioContext), mHost(host), mPort(port), mLibSodiumWrapper(sodiumWrapper) {}
+                      Utils::LibSodiumWrapper* sodiumWrapper,
+                      std::array<uint8_t, 32>* aesKey,
+                      uint64_t* sessionIDRef)
+                : mResolver(ioContext), mSocket(ioContext), mHost(host), mPort(port), mLibSodiumWrapper(sodiumWrapper), mGlobalKeyRef(aesKey), mSessionIDRef(sessionIDRef) {}
 
             void start() {
                 auto self = shared_from_this();
@@ -88,6 +90,10 @@ namespace ColumnLynx::Net::TCP {
                 }
             }
 
+            bool isHandshakeComplete() const {
+                return mHandshakeComplete;
+            }
+
         private:
             void mHandleMessage(ServerMessageType type, const std::string& data) {
                 switch (type) {
@@ -118,6 +124,9 @@ namespace ColumnLynx::Net::TCP {
 
                                 // Generate AES key and send confirmation
                                 mConnectionAESKey = Utils::LibSodiumWrapper::generateRandom256Bit();
+                                if (mGlobalKeyRef) { // Copy to the global reference
+                                    std::copy(mConnectionAESKey.begin(), mConnectionAESKey.end(), mGlobalKeyRef->begin());
+                                }
                                 AsymNonce nonce{};
                                 randombytes_buf(nonce.data(), nonce.size());
 
@@ -166,6 +175,12 @@ namespace ColumnLynx::Net::TCP {
 
                             std::memcpy(&mConnectionSessionID, decrypted.data(), sizeof(mConnectionSessionID));
                             Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
+                        
+                            if (mSessionIDRef) { // Copy to the global reference
+                                *mSessionIDRef = mConnectionSessionID;
+                            }
+
+                            mHandshakeComplete = true;
                         }
                     
                         break;
@@ -182,6 +197,7 @@ namespace ColumnLynx::Net::TCP {
             }
 
             bool mConnected = false;
+            bool mHandshakeComplete = false;
             tcp::resolver mResolver;
             tcp::socket mSocket;
             std::shared_ptr<MessageHandler> mHandler;
@@ -191,5 +207,7 @@ namespace ColumnLynx::Net::TCP {
             Utils::LibSodiumWrapper* mLibSodiumWrapper;
             uint64_t mConnectionSessionID;
             SymmetricKey mConnectionAESKey;
+            std::array<uint8_t, 32>* mGlobalKeyRef; // Reference to global AES key
+            uint64_t* mSessionIDRef; // Reference to global Session ID
     };
 }
