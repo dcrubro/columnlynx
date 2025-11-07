@@ -33,6 +33,9 @@ int main(int argc, char** argv) {
     PanicHandler::init();
 
     try {
+        log("ColumnLynx Client, Version " + getVersion());
+        log("This software is licensed under the GPLv3. See LICENSE for details.");
+
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
         std::array<uint8_t, 32> aesKey = {0}; // Defualt zeroed state until modified by handshake

@@ -22,6 +22,9 @@ int main(int argc, char** argv) {
     try {
         // TODO: Catch SIGINT and SIGTERM for graceful shutdown
 
+        log("ColumnLynx Server, Version " + getVersion());
+        log("This software is licensed under the GPLv3. See LICENSE for details.");
+
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
