@@ -8,6 +8,14 @@ ColumnLynx makes use of both **TCP** and **UDP**. **TCP** is used for the initia
 
 It operates on port **48042** for both TCP and UDP.
 
+### Handshake Procedure
+
+*wip*
+
+### Packet Exchange
+
+*wip*
+
 ## Packet Structure
 
 These are the general packet structures for both the TCP and UDP sides of the protocol. Generally **headers** are **plain-text (unencrypted)** and do not contain any sensitive data. 

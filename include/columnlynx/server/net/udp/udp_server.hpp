@@ -12,12 +12,14 @@
 namespace ColumnLynx::Net::UDP {
     class UDPServer {
         public:
-            UDPServer(asio::io_context& ioContext, uint16_t port)
-                : mSocket(ioContext, asio::ip::udp::endpoint(asio::ip::udp::v4(), port))
+            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning)
+                : mSocket(ioContext, asio::ip::udp::endpoint(asio::ip::udp::v4(), port)), mHostRunning(hostRunning)
             {
                 Utils::log("Started UDP server on port " + std::to_string(port));
                 mStartReceive();
             }
+
+            void stop();
 
         private:
             void mStartReceive();
@@ -26,5 +28,6 @@ namespace ColumnLynx::Net::UDP {
             asio::ip::udp::socket mSocket;
             asio::ip::udp::endpoint mRemoteEndpoint;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
+            bool* mHostRunning;
     };
 }

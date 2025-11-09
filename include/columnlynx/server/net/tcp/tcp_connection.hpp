@@ -61,6 +61,8 @@ namespace ColumnLynx::Net::TCP {
             void disconnect() {
                 std::string ip = mHandler->socket().remote_endpoint().address().to_string();
 
+                mHandler->sendMessage(ServerMessageType::GRACEFUL_DISCONNECT, "Server initiated disconnect.");
+
                 asio::error_code ec;
                 mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
                 mHandler->socket().close(ec);

@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
         while (!done) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
 
-            if (client->isHandshakeComplete()) {
+            if (client->isHandshakeComplete() && client->isConnected()) {
                 // Send a test UDP message every 5 seconds after handshake is complete
                 static auto lastSendTime = std::chrono::steady_clock::now();
                 auto now = std::chrono::steady_clock::now();

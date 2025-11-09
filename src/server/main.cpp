@@ -16,11 +16,25 @@ using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net::TCP;
 using namespace ColumnLynx::Net::UDP;
 
+volatile sig_atomic_t done = 0;
+
+/*void signalHandler(int signum) {
+    if (signum == SIGINT || signum == SIGTERM) {
+        log("Received termination signal. Shutting down server gracefully.");
+        done = 1;
+    }
+}*/
+
 int main(int argc, char** argv) {
     PanicHandler::init();
 
     try {
-        // TODO: Catch SIGINT and SIGTERM for graceful shutdown
+        // Catch SIGINT and SIGTERM for graceful shutdown
+        /*struct sigaction action;
+        memset(&action, 0, sizeof(struct sigaction));
+        action.sa_handler = signalHandler;
+        sigaction(SIGINT, &action, nullptr);
+        sigaction(SIGTERM, &action, nullptr);*/
 
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv3. See LICENSE for details.");
@@ -30,18 +44,48 @@ int main(int argc, char** argv) {
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
         log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
 
+        bool hostRunning = true;
+
         asio::io_context io;
-        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort());
+
+        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning);
+
+        asio::signal_set signals(io, SIGINT, SIGTERM);
+        signals.async_wait([&](const std::error_code&, int) {
+            log("Received termination signal. Shutting down server gracefully.");
+            done = 1;
+            asio::post(io, [&]() {
+                hostRunning = false;
+                server->stop();
+                udpServer->stop();
+            });
+        });
 
         // Run the IO context in a separate thread
         std::thread ioThread([&io]() {
             io.run();
         });
 
-        ioThread.join();
+        //ioThread.detach();
 
         log("Server started on port " + std::to_string(serverPort()));
+        
+        while (!done) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        log("Shutting down server...");
+        /*hostRunning = false;
+        server->stop();
+        udpServer->stop();*/
+
+        io.stop();
+        if (ioThread.joinable()) {
+            ioThread.join();
+        }
+
+        log("Server stopped.");
     } catch (const std::exception& e) {
         error("Server error: " + std::string(e.what()));
     }

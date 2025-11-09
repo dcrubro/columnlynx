@@ -10,13 +10,23 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPServer::mStartReceive() {
+        // A bit of a shotty implementation, might improve later
+        /*if (mHostRunning != nullptr && !(*mHostRunning)) {
+            Utils::log("Server is stopping, not receiving new packets.");
+            return;
+        }*/
+
         mSocket.async_receive_from(
             asio::buffer(mRecvBuffer), mRemoteEndpoint,
             [this](asio::error_code ec, std::size_t bytes) {
-                if (!ec && bytes > 0) {
-                    mHandlePacket(bytes);
+                if (ec) {
+                    if (ec == asio::error::operation_aborted) return; // Socket closed
+                    // Other recv error
+                    if (mHostRunning && *mHostRunning) mStartReceive();
+                    return;
                 }
-                mStartReceive(); // Continue receiving
+                if (bytes > 0) mHandlePacket(bytes);
+                if (mHostRunning && *mHostRunning) mStartReceive();
             }
         );
     }
@@ -68,5 +78,14 @@ namespace ColumnLynx::Net::UDP {
 
     void UDPServer::mSendData(const uint64_t sessionID, const std::string& data) {
         // TODO: Implement
+    }
+
+    void UDPServer::stop() {
+        if (mSocket.is_open()) {
+            asio::error_code ec;
+            mSocket.cancel(ec);
+            mSocket.close(ec);
+            Utils::log("UDP Socket closed.");
+        }
     }
 }

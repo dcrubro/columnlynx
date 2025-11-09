@@ -69,9 +69,11 @@ namespace ColumnLynx::Net::TCP {
                 }
             }
 
-            void disconnect() {
+            void disconnect(bool echo = true) {
                 if (mConnected && mHandler) {
-                    mHandler->sendMessage(ClientMessageType::GRACEFUL_DISCONNECT, "Goodbye");
+                    if (echo) {
+                        mHandler->sendMessage(ClientMessageType::GRACEFUL_DISCONNECT, "Goodbye");
+                    }
 
                     asio::error_code ec;
 
@@ -92,6 +94,10 @@ namespace ColumnLynx::Net::TCP {
 
             bool isHandshakeComplete() const {
                 return mHandshakeComplete;
+            }
+
+            bool isConnected() const {
+                return mConnected;
             }
 
         private:
@@ -187,7 +193,7 @@ namespace ColumnLynx::Net::TCP {
                     case ServerMessageType::GRACEFUL_DISCONNECT:
                         Utils::log("Server is disconnecting: " + data);
                         if (mConnected) { // Prevent Recursion
-                            disconnect();
+                            disconnect(false);
                         }
                         break;
                     default:
