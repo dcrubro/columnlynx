@@ -45,7 +45,16 @@ namespace ColumnLynx::Net::TCP {
                                         
                                         // Init connection handshake
                                         Utils::log("Sending handshake init to server.");
-                                        mHandler->sendMessage(ClientMessageType::HANDSHAKE_INIT, Utils::uint8ArrayToString(mLibSodiumWrapper->getXPublicKey(), crypto_box_PUBLICKEYBYTES));
+
+                                        std::vector<uint8_t> payload;
+                                        payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
+                                        payload.push_back(Utils::protocolVersion());
+                                        payload.insert(payload.end(),
+                                            mLibSodiumWrapper->getXPublicKey(),
+                                            mLibSodiumWrapper->getXPublicKey() + crypto_box_PUBLICKEYBYTES
+                                        );
+
+                                        mHandler->sendMessage(ClientMessageType::HANDSHAKE_INIT, Utils::uint8ArrayToString(payload.data(), payload.size()));
                                     } else {
                                         Utils::error("Client connect failed: " + ec.message());
                                     }

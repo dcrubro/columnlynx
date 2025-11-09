@@ -44,6 +44,10 @@ namespace ColumnLynx::Utils {
         return 48042;
     }
 
+    unsigned char protocolVersion() {
+        return 1;
+    }
+
     std::string bytesToHexString(const uint8_t* bytes, size_t length) {
         const char hexChars[] = "0123456789ABCDEF";
         std::string hexString;

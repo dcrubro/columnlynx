@@ -92,7 +92,24 @@ namespace ColumnLynx::Net::TCP {
                 switch (type) {
                     case ClientMessageType::HANDSHAKE_INIT: {
                         Utils::log("Received HANDSHAKE_INIT from " + reqAddr);
-                        std::memcpy(mConnectionPublicKey.data(), data.data(), std::min(data.size(), sizeof(mConnectionPublicKey))); // Store the client's public key (for identification)
+
+                        if (data.size() < 1 + crypto_box_PUBLICKEYBYTES) {
+                            Utils::warn("HANDSHAKE_INIT from " + reqAddr + " is too short.");
+                            disconnect();
+                            return;
+                        }
+
+                        uint8_t clientProtoVer = static_cast<uint8_t>(data[0]);
+                        if (clientProtoVer != Utils::protocolVersion()) {
+                            Utils::warn("Client protocol version mismatch from " + reqAddr + ". Expected " +
+                                        std::to_string(Utils::protocolVersion()) + ", got " + std::to_string(clientProtoVer) + ".");
+                            disconnect();
+                            return;
+                        }
+
+                        Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
+
+                        std::memcpy(mConnectionPublicKey.data(), data.data() + 1, std::min(data.size() - 1, sizeof(mConnectionPublicKey))); // Store the client's public key (for identification)
                         mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(mLibSodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
                         break;
                     }

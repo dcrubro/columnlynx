@@ -5,6 +5,8 @@
 #pragma once
 #include <iostream>
 #include <string>
+#include <cstdint>
+#include <array>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -22,6 +24,7 @@ namespace ColumnLynx::Utils {
     std::string getHostname();
     std::string getVersion();
     unsigned short serverPort();
+    unsigned char protocolVersion();
 
     // Raw byte to hex string conversion helper
     std::string bytesToHexString(const uint8_t* bytes, size_t length);

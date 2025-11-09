@@ -65,11 +65,12 @@ namespace ColumnLynx::Net::UDP {
             // Update recv counter
             const_cast<SessionState*>(session.get())->recv_ctr.fetch_add(1, std::memory_order_relaxed);
 
-            // TODO: Process the packet payload
-
             // For now, just log the decrypted payload
             std::string payloadStr(plaintext.begin(), plaintext.end());
             Utils::log("UDP: Received packet from " + mRemoteEndpoint.address().to_string() + " - Payload: " + payloadStr);
+
+            // TODO: Process the packet payload, for now just echo back
+            mSendData(sessionID, std::string(plaintext.begin(), plaintext.end()));
         } catch (...) {
             Utils::warn("UDP: Failed to decrypt payload from " + mRemoteEndpoint.address().to_string());
             return;
@@ -78,6 +79,44 @@ namespace ColumnLynx::Net::UDP {
 
     void UDPServer::mSendData(const uint64_t sessionID, const std::string& data) {
         // TODO: Implement
+
+        // Find the IPv4/IPv6 endpoint for the session
+        std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
+        if (!session) {
+            Utils::warn("UDP: Cannot send data, unknown session ID " + std::to_string(sessionID));
+            return;
+        }
+
+        asio::ip::udp::endpoint endpoint = session->udpEndpoint;
+        if (endpoint.address().is_unspecified()) {
+            Utils::warn("UDP: Cannot send data, session ID " + std::to_string(sessionID) + " has no known UDP endpoint.");
+            return;
+        }
+
+        // Prepare packet
+        UDPPacketHeader hdr{};
+        randombytes_buf(hdr.nonce.data(), hdr.nonce.size());
+
+        auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
+            reinterpret_cast<const uint8_t*>(data.data()), data.size(),
+            session->aesKey, hdr.nonce, "udp-data"
+        );
+
+        std::vector<uint8_t> packet;
+        packet.reserve(sizeof(UDPPacketHeader) +  sizeof(uint64_t) + encryptedPayload.size());
+        packet.insert(packet.end(), 
+            reinterpret_cast<uint8_t*>(&hdr),
+            reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
+        );
+        packet.insert(packet.end(),
+            reinterpret_cast<const uint8_t*>(&sessionID),
+            reinterpret_cast<const uint8_t*>(&sessionID) + sizeof(sessionID)
+        );
+        packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
+
+        // Send packet
+        mSocket.send_to(asio::buffer(packet), endpoint);
+        Utils::log("UDP: Sent packet of size " + std::to_string(packet.size()) + " to " + std::to_string(sessionID) + " (" + endpoint.address().to_string() + ":" + std::to_string(endpoint.port()) + ")");
     }
 
     void UDPServer::stop() {

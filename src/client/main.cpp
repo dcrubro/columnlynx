@@ -9,6 +9,7 @@
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
 #include <columnlynx/client/net/udp/udp_client.hpp>
+#include <cxxopts/cxxopts.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
@@ -32,6 +33,22 @@ int main(int argc, char** argv) {
 
     PanicHandler::init();
 
+    cxxopts::Options options("columnlynx_client", "ColumnLynx Client Application");
+
+    options.add_options()
+        ("h,help", "Print help")
+        ("s,server", "Server address", cxxopts::value<std::string>()->default_value("127.0.0.1"))
+        ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())));
+    
+    auto result = options.parse(argc, argv);
+    if (result.count("help")) {
+        std::cout << options.help() << std::endl;
+        return 0;
+    }
+
+    auto host = result["server"].as<std::string>();
+    auto port = std::to_string(result["port"].as<uint16_t>());
+
     try {
         log("ColumnLynx Client, Version " + getVersion());
         log("This software is licensed under the GPLv3. See LICENSE for details.");
@@ -42,8 +59,8 @@ int main(int argc, char** argv) {
         uint64_t sessionID = 0;
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, "127.0.0.1", std::to_string(serverPort()), &sodiumWrapper, &aesKey, &sessionID);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, "127.0.0.1", std::to_string(serverPort()), &aesKey, &sessionID);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID);
 
         client->start();
         udpClient->start();
@@ -54,7 +71,7 @@ int main(int argc, char** argv) {
         });
         ioThread.detach();
 
-        log("Client connected to 127.0.0.1:" + std::to_string(serverPort()));
+        log("Client connected to " + host + ":" + port);
 
         // Client is running
         while (!done) {
@@ -71,6 +88,7 @@ int main(int argc, char** argv) {
             }
         }
         log("Client shutting down.");
+        udpClient->stop();
         client->disconnect();
         io.stop();
         ioThread.join();

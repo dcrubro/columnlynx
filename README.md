@@ -43,6 +43,7 @@ The data section is unspecified. It may change depending on the **Packet ID**. I
 
 | Type | Length | Name | Description |
 |:-----|:-------|:-----|:------------|
+| uint8_t | 1 byte | **Header** - Protocol Version | Supported protocol version |
 | uint8_t | 1 byte | **Header** - Packet Type | General type of packet |
 | uint8_t/byte array | variable | Data | General packet data - changes for packet to packet |
 
