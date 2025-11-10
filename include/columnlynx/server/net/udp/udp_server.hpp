@@ -1,6 +1,6 @@
 // udp_server.hpp - UDP Server for ColumnLynx
 // Copyright (C) 2025 DcruBro
-// Distributed under the GPLv3 license. See LICENSE for details.
+// Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #pragma once
 
