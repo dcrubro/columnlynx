@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
         sigaction(SIGTERM, &action, nullptr);*/
 
         log("ColumnLynx Server, Version " + getVersion());
-        log("This software is licensed under the GPLv3. See LICENSE for details.");
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSE for details.");
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

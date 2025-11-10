@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
 
     try {
         log("ColumnLynx Client, Version " + getVersion());
-        log("This software is licensed under the GPLv3. See LICENSE for details.");
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSE for details.");
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
