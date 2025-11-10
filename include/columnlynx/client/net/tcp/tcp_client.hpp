@@ -25,7 +25,18 @@ namespace ColumnLynx::Net::TCP {
                       Utils::LibSodiumWrapper* sodiumWrapper,
                       std::array<uint8_t, 32>* aesKey,
                       uint64_t* sessionIDRef)
-                : mResolver(ioContext), mSocket(ioContext), mHost(host), mPort(port), mLibSodiumWrapper(sodiumWrapper), mGlobalKeyRef(aesKey), mSessionIDRef(sessionIDRef) {}
+                :
+                mResolver(ioContext),
+                mSocket(ioContext),
+                mHost(host),
+                mPort(port),
+                mLibSodiumWrapper(sodiumWrapper),
+                mGlobalKeyRef(aesKey),
+                mSessionIDRef(sessionIDRef),
+                mHeartbeatTimer(mSocket.get_executor()),
+                mLastHeartbeatReceived(std::chrono::steady_clock::now()),
+                mLastHeartbeatSent(std::chrono::steady_clock::now())
+            {}
 
             void start() {
                 auto self = shared_from_this();
@@ -55,6 +66,8 @@ namespace ColumnLynx::Net::TCP {
                                         );
 
                                         mHandler->sendMessage(ClientMessageType::HANDSHAKE_INIT, Utils::uint8ArrayToString(payload.data(), payload.size()));
+                                    
+                                        mStartHeartbeat();
                                     } else {
                                         Utils::error("Client connect failed: " + ec.message());
                                     }
@@ -85,6 +98,7 @@ namespace ColumnLynx::Net::TCP {
                     }
 
                     asio::error_code ec;
+                    mHeartbeatTimer.cancel();
 
                     mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
                     if (ec) {
@@ -110,6 +124,42 @@ namespace ColumnLynx::Net::TCP {
             }
 
         private:
+            void mStartHeartbeat() {
+                auto self = shared_from_this();
+                mHeartbeatTimer.expires_after(std::chrono::seconds(5));
+                mHeartbeatTimer.async_wait([this, self](const asio::error_code& ec) {
+                    if (ec == asio::error::operation_aborted) {
+                        return; // Timer was cancelled
+                    }
+
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - self->mLastHeartbeatReceived).count();
+
+                    if (elapsed >= 15) { // 3 missed heartbeats
+                        Utils::error("Missed 3 heartbeats. I think the other party might have died! Disconnecting.");
+                        
+                        // Close sockets forcefully, server is dead
+                        asio::error_code ec;
+                        mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
+                        mHandler->socket().close(ec);
+                        mConnected = false;
+
+                        mGlobalKeyRef = nullptr;
+                        if (mSessionIDRef) {
+                            *mSessionIDRef = 0;
+                        }
+
+                        return;
+                    }
+
+                    self->sendMessage(ClientMessageType::HEARTBEAT);
+                    Utils::log("Sent HEARTBEAT to server.");
+                    self->mLastHeartbeatSent = std::chrono::steady_clock::now();
+                    
+                    self->mStartHeartbeat(); // Recursive
+                });
+            }
+
             void mHandleMessage(ServerMessageType type, const std::string& data) {
                 switch (type) {
                     case ServerMessageType::HANDSHAKE_IDENTIFY:
@@ -199,6 +249,15 @@ namespace ColumnLynx::Net::TCP {
                         }
                     
                         break;
+                    case ServerMessageType::HEARTBEAT:
+                        Utils::log("Received HEARTBEAT from server.");
+                        mHandler->sendMessage(ClientMessageType::HEARTBEAT_ACK, ""); // Send ACK
+                        break;
+                    case ServerMessageType::HEARTBEAT_ACK:
+                        Utils::log("Received HEARTBEAT_ACK from server.");
+                        mLastHeartbeatReceived = std::chrono::steady_clock::now();
+                        mMissedHeartbeats = 0; // Reset missed heartbeat count
+                        break;
                     case ServerMessageType::GRACEFUL_DISCONNECT:
                         Utils::log("Server is disconnecting: " + data);
                         if (mConnected) { // Prevent Recursion
@@ -224,5 +283,9 @@ namespace ColumnLynx::Net::TCP {
             SymmetricKey mConnectionAESKey;
             std::array<uint8_t, 32>* mGlobalKeyRef; // Reference to global AES key
             uint64_t* mSessionIDRef; // Reference to global Session ID
+            asio::steady_timer mHeartbeatTimer;
+            std::chrono::steady_clock::time_point mLastHeartbeatReceived;
+            std::chrono::steady_clock::time_point mLastHeartbeatSent;
+            int mMissedHeartbeats = 0;
     };
 }
