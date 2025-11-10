@@ -96,7 +96,22 @@ The **Data** is generally just the **raw underlying packet** forwarded to the se
 
 ## Legal
 
-Copyright (C) 2025 Jonas Korene Novak
+### Copyright ownership:
+Unless explicitly stated otherwise, all source code and material contained in this project
+is the copyright of their respective authors, as identified in (but not limited to)
+the project's version control history (e.g., Git commit authorship).
+
+Each contribution is provided under the terms of the GNU General Public License,
+version 2 or (at your option) any later version, as published by the Free Software Foundation,
+unless an individual file or component specifies a different license.
+
+No contributor or maintainer claims exclusive ownership of the entire project.
+All rights are retained by their respective authors.
+
+By submitting a contribution, you agree that it will be licensed under the
+same dual GPL terms as the project as a whole.
+
+### Licensing:
 
 This project is **dual-licensed** under the GNU General Public License (GPL):
 
@@ -120,11 +135,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-DcruBro is the online pseudonym of Jonas Korene Novak. Both refer to the same individual and may be used interchangeably for copyright attribution purposes.
-
-### Licensing
-
-*See **ATTRIBUTIONS.md** for details.*
-
 This project includes the [ASIO C++ Library](https://think-async.com/Asio/),
 distributed under the [Boost Software License, Version 1.0](https://www.boost.org/LICENSE_1_0.txt).
+
+*See **ATTRIBUTIONS.md** for details.*
