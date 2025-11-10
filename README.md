@@ -1,6 +1,20 @@
 # ColumnLynx
 
-ColumnLynx is a VPN protocol designed to be as lightweight as possible.
+## What is it?
+
+ColumnLynx is a VPN protocol designed to be as lightweight and simple to understand as possible.
+
+### Origin
+
+The original goal of this project was for me to learn about the inner-workings of VPN protocols, but overtime, it has transformed into the goal seen above.
+
+### Design Philosophy
+
+A VPN (Virtual Private Network), in the most basic terms, is a protocol that tunnels network traffic from a client to a server over an encrypted tunnel and having the server send that traffic on its behalf. It can be catagorized into sitting somewhere in-between the 3rd and 4th layers of the ISO/OSI model.
+
+This project aims to be just that, an encrypted tunneling protocol that works on the 3rd and 4th layers of the ISO/OSI model, nothing more, nothing less. We leave complex functions like compression, to the higher layers (though it could be argued that making an encrypted tunnel already pushes us up to Layer 6).
+
+This simplicity-focused design approach allows us to make an efficient, low-overhead VPN protocol and minimize any potential attack surface.
 
 ## How does it work
 
