@@ -74,7 +74,8 @@ int main(int argc, char** argv) {
         log("Client connected to " + host + ":" + port);
 
         // Client is running
-        while ((!done && client->isConnected()) || !client->isHandshakeComplete()) {
+        // TODO: SIGINT or SIGTERM seems to not kill this instantly!
+        while (client->isConnected() || !client->isHandshakeComplete() || !done) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
 
             if (client->isHandshakeComplete()) {
