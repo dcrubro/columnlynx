@@ -98,10 +98,19 @@ The **Data** is generally just the **raw underlying packet** forwarded to the se
 
 Copyright (C) 2025 Jonas Korene Novak
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+This project is **dual-licensed** under the GNU General Public License (GPL):
+
+- **GPL version 2 only**, *or*
+- **GPL version 3**.
+
+You may choose **either license**, whichever better suits your project or compliance requirements.
+
+Copies of both licenses are provided in the [`LICENSES/`](LICENSES) directory:
+- [GPL-2.0-only](https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt)
+- [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.txt)
+
+Unless you explicitly state otherwise, any contributions you submit will be considered
+dual-licensed under the same terms.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
