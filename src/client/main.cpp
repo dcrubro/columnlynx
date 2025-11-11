@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 
     try {
         log("ColumnLynx Client, Version " + getVersion());
-        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSE for details.");
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
 
         // Client is running
         // TODO: SIGINT or SIGTERM seems to not kill this instantly!
-        while (client->isConnected() || !client->isHandshakeComplete() || !done) {
+        while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
 
             if (client->isHandshakeComplete()) {

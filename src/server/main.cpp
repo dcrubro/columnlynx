@@ -18,26 +18,27 @@ using namespace ColumnLynx::Net::UDP;
 
 volatile sig_atomic_t done = 0;
 
-/*void signalHandler(int signum) {
+void signalHandler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
         log("Received termination signal. Shutting down server gracefully.");
         done = 1;
     }
-}*/
+}
 
 int main(int argc, char** argv) {
+    // Capture SIGINT and SIGTERM for graceful shutdown
+    struct sigaction action;
+    memset(&action, 0, sizeof(struct sigaction));
+    action.sa_handler = signalHandler;
+    sigaction(SIGINT, &action, nullptr);
+    sigaction(SIGTERM, &action, nullptr);
+
     PanicHandler::init();
 
     try {
-        // Catch SIGINT and SIGTERM for graceful shutdown
-        /*struct sigaction action;
-        memset(&action, 0, sizeof(struct sigaction));
-        action.sa_handler = signalHandler;
-        sigaction(SIGINT, &action, nullptr);
-        sigaction(SIGTERM, &action, nullptr);*/
 
         log("ColumnLynx Server, Version " + getVersion());
-        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSE for details.");
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
