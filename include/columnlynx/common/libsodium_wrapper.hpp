@@ -14,6 +14,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 namespace ColumnLynx {
     using PublicKey = std::array<uint8_t, crypto_sign_PUBLICKEYBYTES>;   // Ed25519
@@ -220,6 +221,57 @@ namespace ColumnLynx::Utils {
             // Perform the actual certificate verification
             int result = X509_verify_cert(ctx.get());
             return result == 1;
+        }
+
+        static inline std::vector<std::string> getCertificateHostname(const std::vector<uint8_t>& cert_der) {
+            std::vector<std::string> names;
+
+            if (cert_der.empty())
+                return names;
+
+            // Parse DER certificate
+            const unsigned char* p = cert_der.data();
+            X509* cert = d2i_X509(nullptr, &p, cert_der.size());
+            if (!cert)
+                return names;
+
+            // --- Subject Alternative Names (SAN) ---
+            GENERAL_NAMES* san_names =
+                (GENERAL_NAMES*)X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr);
+
+            if (san_names) {
+                int san_count = sk_GENERAL_NAME_num(san_names);
+                for (int i = 0; i < san_count; i++) {
+                    const GENERAL_NAME* current = sk_GENERAL_NAME_value(san_names, i);
+                    if (current->type == GEN_DNS) {
+                        const char* dns_name = (const char*)ASN1_STRING_get0_data(current->d.dNSName);
+                        // Safety: ensure no embedded nulls
+                        if (ASN1_STRING_length(current->d.dNSName) == (int)std::strlen(dns_name)) {
+                            names.emplace_back(dns_name);
+                        }
+                    }
+                }
+                GENERAL_NAMES_free(san_names);
+            }
+        
+            // --- Fallback: Common Name (CN) ---
+            if (names.empty()) {
+                X509_NAME* subject = X509_get_subject_name(cert);
+                if (subject) {
+                    int idx = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+                    if (idx >= 0) {
+                        X509_NAME_ENTRY* entry = X509_NAME_get_entry(subject, idx);
+                        ASN1_STRING* cn_asn1 = X509_NAME_ENTRY_get_data(entry);
+                        const char* cn_str = (const char*)ASN1_STRING_get0_data(cn_asn1);
+                        if (ASN1_STRING_length(cn_asn1) == (int)std::strlen(cn_str)) {
+                            names.emplace_back(cn_str);
+                        }
+                    }
+                }
+            }
+        
+            X509_free(cert);
+            return names;
         }
 
         private:

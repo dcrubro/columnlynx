@@ -69,5 +69,6 @@ namespace ColumnLynx::Net::TCP {
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
+            bool mIsHostDomain;
     };
 }

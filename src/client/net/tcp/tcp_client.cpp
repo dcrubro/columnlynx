@@ -3,6 +3,7 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
+#include <arpa/inet.h>
 
 namespace ColumnLynx::Net::TCP {
     void TCPClient::start() {
@@ -23,6 +24,11 @@ namespace ColumnLynx::Net::TCP {
                                 
                                 // Init connection handshake
                                 Utils::log("Sending handshake init to server.");
+
+                                // Check if hostname or IPv4/IPv6
+                                sockaddr_in addr4{};
+                                sockaddr_in6 addr6{};
+                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1;
 
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
@@ -136,7 +142,6 @@ namespace ColumnLynx::Net::TCP {
                     std::vector<uint8_t> serverPublicKeyVec(std::begin(mServerPublicKey), std::end(mServerPublicKey));
 
                     // Verify server public key
-                    // TODO: Verify / Match hostname of public key to hostname of server
                     if (!Utils::LibSodiumWrapper::verifyCertificateWithSystemCAs(serverPublicKeyVec)) {
                         if (!(*mInsecureMode)) {
                             Utils::error("Server public key verification failed. Terminating connection.");
@@ -144,7 +149,29 @@ namespace ColumnLynx::Net::TCP {
                             return;
                         }
 
-                        Utils::log("Warning: Server public key verification failed, but continuing due to insecure mode.");
+                        Utils::warn("Warning: Server public key verification failed, but continuing due to insecure mode.");
+                    }
+
+                    // Extract and verify hostname from certificate if not IP
+                    if (mIsHostDomain) {
+                        std::vector<std::string> certHostnames = Utils::LibSodiumWrapper::getCertificateHostname(serverPublicKeyVec);
+
+                        // Temp: print extracted hostnames if any
+                        for (const auto& hostname : certHostnames) {
+                            Utils::log("Extracted hostname from certificate: " + hostname);
+                        }
+
+                        if (certHostnames.empty() || std::find(certHostnames.begin(), certHostnames.end(), mHost) == certHostnames.end()) {
+                            if (!(*mInsecureMode)) {
+                                Utils::error("Server hostname verification failed. Terminating connection.");
+                                disconnect();
+                                return;
+                            }
+
+                            Utils::warn("Warning: Server hostname verification failed, but continuing due to insecure mode.");
+                        }
+                    } else {
+                        Utils::warn("Connecting via IP address, I can't verify the server's identity! You might be getting MITM'd!");
                     }
 
                     // Generate and send challenge
