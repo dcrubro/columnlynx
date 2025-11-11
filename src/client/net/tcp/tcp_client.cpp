@@ -128,12 +128,26 @@ namespace ColumnLynx::Net::TCP {
 
     void TCPClient::mHandleMessage(ServerMessageType type, const std::string& data) {
         switch (type) {
-            case ServerMessageType::HANDSHAKE_IDENTIFY:
-                Utils::log("Received server identity: " + data);
-                std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
+            case ServerMessageType::HANDSHAKE_IDENTIFY: {
+                    Utils::log("Received server identity: " + data);
+                    std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
 
-                // Generate and send challenge
-                {
+                    // Convert key (uint8_t raw array) to vector
+                    std::vector<uint8_t> serverPublicKeyVec(std::begin(mServerPublicKey), std::end(mServerPublicKey));
+
+                    // Verify server public key
+                    // TODO: Verify / Match hostname of public key to hostname of server
+                    if (!Utils::LibSodiumWrapper::verifyCertificateWithSystemCAs(serverPublicKeyVec)) {
+                        if (!(*mInsecureMode)) {
+                            Utils::error("Server public key verification failed. Terminating connection.");
+                            disconnect();
+                            return;
+                        }
+
+                        Utils::log("Warning: Server public key verification failed, but continuing due to insecure mode.");
+                    }
+
+                    // Generate and send challenge
                     Utils::log("Sending challenge to server.");
                     mSubmittedChallenge = Utils::LibSodiumWrapper::generateRandom256Bit(); // Temporarily store the challenge to verify later
                     mHandler->sendMessage(ClientMessageType::HANDSHAKE_CHALLENGE, Utils::uint8ArrayToString(mSubmittedChallenge));

@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
-        log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
+        //log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
 
         bool hostRunning = true;
 

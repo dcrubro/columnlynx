@@ -38,7 +38,10 @@ int main(int argc, char** argv) {
     options.add_options()
         ("h,help", "Print help")
         ("s,server", "Server address", cxxopts::value<std::string>()->default_value("127.0.0.1"))
-        ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())));
+        ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())))
+        ("as,allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
+
+    bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
     
     auto result = options.parse(argc, argv);
     if (result.count("help")) {
@@ -59,7 +62,7 @@ int main(int argc, char** argv) {
         uint64_t sessionID = 0;
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode);
         auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID);
 
         client->start();

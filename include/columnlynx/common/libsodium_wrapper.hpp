@@ -11,6 +11,9 @@
 #include <columnlynx/common/utils.hpp>
 #include <array>
 #include <vector>
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/pem.h>
 
 namespace ColumnLynx {
     using PublicKey = std::array<uint8_t, crypto_sign_PUBLICKEYBYTES>;   // Ed25519
@@ -177,6 +180,47 @@ namespace ColumnLynx::Utils {
             
                 return plaintext;
             }
+
+        static inline bool verifyCertificateWithSystemCAs(const std::vector<uint8_t>& cert_der) {
+            // Parse DER-encoded certificate
+            const unsigned char* p = cert_der.data();
+            std::unique_ptr<X509, decltype(&X509_free)> cert(
+                d2i_X509(nullptr, &p, cert_der.size()), X509_free
+            );
+            if (!cert) {
+                return false;
+            }
+        
+            // Create a certificate store
+            std::unique_ptr<X509_STORE, decltype(&X509_STORE_free)> store(
+                X509_STORE_new(), X509_STORE_free
+            );
+            if (!store) {
+                return false;
+            }
+        
+            // Load system default CA paths (/etc/ssl/certs, etc.)
+            if (X509_STORE_set_default_paths(store.get()) != 1) {
+                return false;
+            }
+        
+            // Create a verification context
+            std::unique_ptr<X509_STORE_CTX, decltype(&X509_STORE_CTX_free)> ctx(
+                X509_STORE_CTX_new(), X509_STORE_CTX_free
+            );
+            if (!ctx) {
+                return false;
+            }
+        
+            // Initialize verification context
+            if (X509_STORE_CTX_init(ctx.get(), store.get(), cert.get(), nullptr) != 1) {
+                return false;
+            }
+        
+            // Perform the actual certificate verification
+            int result = X509_verify_cert(ctx.get());
+            return result == 1;
+        }
 
         private:
             std::array<uint8_t, crypto_sign_PUBLICKEYBYTES> mPublicKey;

@@ -24,7 +24,8 @@ namespace ColumnLynx::Net::TCP {
                       const std::string& port,
                       Utils::LibSodiumWrapper* sodiumWrapper,
                       std::array<uint8_t, 32>* aesKey,
-                      uint64_t* sessionIDRef)
+                      uint64_t* sessionIDRef,
+                      bool* insecureMode)
                 :
                 mResolver(ioContext),
                 mSocket(ioContext),
@@ -33,6 +34,7 @@ namespace ColumnLynx::Net::TCP {
                 mLibSodiumWrapper(sodiumWrapper),
                 mGlobalKeyRef(aesKey),
                 mSessionIDRef(sessionIDRef),
+                mInsecureMode(insecureMode),
                 mHeartbeatTimer(mSocket.get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
                 mLastHeartbeatSent(std::chrono::steady_clock::now())
@@ -62,6 +64,7 @@ namespace ColumnLynx::Net::TCP {
             SymmetricKey mConnectionAESKey;
             std::array<uint8_t, 32>* mGlobalKeyRef; // Reference to global AES key
             uint64_t* mSessionIDRef; // Reference to global Session ID
+            bool* mInsecureMode; // Reference to insecure mode flag
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
