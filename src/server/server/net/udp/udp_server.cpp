@@ -10,12 +10,6 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPServer::mStartReceive() {
-        // A bit of a shotty implementation, might improve later
-        /*if (mHostRunning != nullptr && !(*mHostRunning)) {
-            Utils::log("Server is stopping, not receiving new packets.");
-            return;
-        }*/
-
         mSocket.async_receive_from(
             asio::buffer(mRecvBuffer), mRemoteEndpoint,
             [this](asio::error_code ec, std::size_t bytes) {
@@ -78,8 +72,6 @@ namespace ColumnLynx::Net::UDP {
     }
 
     void UDPServer::mSendData(const uint64_t sessionID, const std::string& data) {
-        // TODO: Implement
-
         // Find the IPv4/IPv6 endpoint for the session
         std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
         if (!session) {
