@@ -15,6 +15,8 @@
 #include <openssl/x509_vfy.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
+#include <memory>
+#include <cstring>
 
 namespace ColumnLynx {
     using PublicKey = std::array<uint8_t, crypto_sign_PUBLICKEYBYTES>;   // Ed25519
