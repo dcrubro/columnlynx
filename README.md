@@ -158,6 +158,6 @@ distributed under the [Boost Software License, Version 1.0](https://www.boost.or
 This project includes the CXXOPTS Library
 distributed under the MIT License
 
-This project includes the [Wintun Library](https://www.wintun.net/), distributed under the MIT License or the GPL-2.0 License.
+This project includes the [Wintun Library](https://www.wintun.net/), distributed under the MIT License or the GPL-2.0 License. This project utilizes it under the MIT license.
 
 *See **ATTRIBUTIONS.md** for details.*

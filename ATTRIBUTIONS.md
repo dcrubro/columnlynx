@@ -22,3 +22,4 @@ This project uses the standalone version of the ASIO C++ library for asynchronou
 - **Copyright:** (c) 2018-2025 WireGuard LLC
 - **License:** MIT License OR GPL-2.0 License
 - **License Text:** See `third_party/wintun/`
+- **Utilized Under:** MIT License
