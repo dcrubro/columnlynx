@@ -108,6 +108,9 @@ The **Data** is generally just the **raw underlying packet** forwarded to the se
 | uint64_t | 8 bytes | **Header** - Session ID | The unique and random session identifier for the client |
 | uint8_t | variable | Data | General data / payload |
 
+## Misc.
+Building the binary for Windows requires the Wintun DLL. The include header is pre-packaged.
+
 ## Legal
 
 ### Copyright ownership:
@@ -151,5 +154,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 This project includes the [ASIO C++ Library](https://think-async.com/Asio/),
 distributed under the [Boost Software License, Version 1.0](https://www.boost.org/LICENSE_1_0.txt).
+
+This project includes the CXXOPTS Library
+distributed under the MIT License
+
+This project includes the [Wintun Library](https://www.wintun.net/), distributed under the MIT License or the GPL-2.0 License.
 
 *See **ATTRIBUTIONS.md** for details.*

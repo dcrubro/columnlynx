@@ -1,0 +1,51 @@
+// virtual_interface.hpp - Virtual Interface for Network Communication
+// Copyright (C) 2025 DcruBro
+// Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
+
+#pragma once
+
+#include <stdexcept>
+#include <cstring>
+#include <cerrno>
+#include <vector>
+#include <iostream>
+#include <columnlynx/common/utils.hpp>
+
+#if defined(__linux__)
+    #include <fcntl.h>
+    #include <unistd.h>
+    #include <sys/ioctl.h>
+    #include <linux/if.h>
+    #include <linux/if_tun.h>
+#elif defined(__APPLE__)
+    #include <sys/socket.h>
+    #include <sys/kern_control.h>
+    #include <sys/sys_domain.h>
+    #include <net/if_utun.h>
+    #include <sys/ioctl.h>
+    #include <unistd.h>
+#elif defined(_WIN32)
+    #include <windows.h>
+    #include <wintun/wintun.h>
+    #pragma comment(lib, "advapi32.lib")
+#endif
+
+namespace ColumnLynx::Net {
+    class VirtualInterface {
+        public:
+            explicit VirtualInterface(const std::string& ifName);
+            ~VirtualInterface();
+
+            std::vector<uint8_t> readPacket();
+            void writePacket(const std::vector<uint8_t>& packet);
+
+            const std::string& getName() const;
+            int getFd() const; // for ASIO integration (on POSIX)
+        private:
+            std::string mIfName;
+            int mFd;           // POSIX
+        #if defined(_WIN32)
+            HANDLE mHandle;    // Windows
+        #endif
+    };
+}

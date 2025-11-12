@@ -10,9 +10,11 @@
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
 #include <columnlynx/client/net/udp/udp_client.hpp>
 #include <cxxopts/cxxopts.hpp>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
+using namespace ColumnLynx::Net;
 
 volatile sig_atomic_t done = 0;
 
@@ -55,6 +57,13 @@ int main(int argc, char** argv) {
     try {
         log("ColumnLynx Client, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
+
+#if defined(__WIN32__)
+        WintunInitialize();
+#endif
+
+        VirtualInterface tun("columnlynxtun0");
+        log("Using virtual interface: " + tun.getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
