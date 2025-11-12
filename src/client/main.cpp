@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
         ("h,help", "Print help")
         ("s,server", "Server address", cxxopts::value<std::string>()->default_value("127.0.0.1"))
         ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())))
-        ("as,allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
+        ("allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
 
     bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
     

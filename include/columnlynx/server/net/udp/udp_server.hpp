@@ -12,9 +12,31 @@
 namespace ColumnLynx::Net::UDP {
     class UDPServer {
         public:
-            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning)
-                : mSocket(ioContext, asio::ip::udp::endpoint(asio::ip::udp::v4(), port)), mHostRunning(hostRunning)
+            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning, bool ipv4Only = false)
+                : mSocket(ioContext), mHostRunning(hostRunning)
             {
+                asio::error_code ec;
+
+                if (!ipv4Only) {
+                    // Try IPv6 first (dual-stack check)
+                    asio::ip::udp::endpoint endpoint_v6(asio::ip::udp::v6(), port);
+                    mSocket.open(endpoint_v6.protocol(), ec);
+                    if (!ec) {
+                        mSocket.set_option(asio::ip::v6_only(false), ec); // Allow dual-stack if possible
+                        mSocket.bind(endpoint_v6, ec);
+                    }
+                }
+
+                // Fallback to IPv4 if anything failed
+                if (ec || ipv4Only) {
+                    Utils::warn("UDP: IPv6 unavailable (" + ec.message() + "), falling back to IPv4 only");
+
+                    asio::ip::udp::endpoint endpoint_v4(asio::ip::udp::v4(), port);
+                    mSocket.close(); // ensure clean state
+                    mSocket.open(endpoint_v4.protocol());
+                    mSocket.bind(endpoint_v4);
+                }
+
                 Utils::log("Started UDP server on port " + std::to_string(port));
                 mStartReceive();
             }

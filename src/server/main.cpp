@@ -10,6 +10,7 @@
 #include <columnlynx/server/net/udp/udp_server.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <unordered_set>
+#include <cxxopts/cxxopts.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
@@ -33,9 +34,22 @@ int main(int argc, char** argv) {
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
 
+    cxxopts::Options options("columnlynx_server", "ColumnLynx Server Application");
+
+    options.add_options()
+        ("h,help", "Print help")
+        ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"));
+
     PanicHandler::init();
 
     try {
+        auto result = options.parse(argc, argv);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
+
+        bool ipv4Only = result["ipv4-only"].as<bool>();
 
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
@@ -49,8 +63,8 @@ int main(int argc, char** argv) {
 
         asio::io_context io;
 
-        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning);
+        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning, ipv4Only);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
