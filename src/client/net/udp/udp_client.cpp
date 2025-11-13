@@ -6,6 +6,7 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPClient::start() {
+        // TODO: Add IPv6
         auto endpoints = mResolver.resolve(asio::ip::udp::v4(), mHost, mPort);
         mRemoteEndpoint = *endpoints.begin();
         mSocket.open(asio::ip::udp::v4());

@@ -20,7 +20,10 @@ namespace ColumnLynx::Net::UDP {
                       std::array<uint8_t, 32>* aesKeyRef,
                       uint64_t* sessionIDRef,
                       std::shared_ptr<VirtualInterface> tunRef = nullptr)
-                : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef), mTunRef(tunRef) { mStartReceive(); }
+                : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef), mTunRef(tunRef) 
+            {
+                mStartReceive(); 
+            }
 
             void start();
             void sendMessage(const std::string& data = "");

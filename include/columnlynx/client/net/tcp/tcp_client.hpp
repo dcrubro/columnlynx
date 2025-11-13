@@ -40,7 +40,8 @@ namespace ColumnLynx::Net::TCP {
                 mInsecureMode(insecureMode),
                 mHeartbeatTimer(mSocket.get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
-                mLastHeartbeatSent(std::chrono::steady_clock::now())
+                mLastHeartbeatSent(std::chrono::steady_clock::now()),
+                mTun(tun)
             {}
 
             void start();

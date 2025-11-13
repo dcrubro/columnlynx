@@ -84,8 +84,6 @@ int main(int argc, char** argv) {
                 hostRunning = false;
                 server->stop();
                 udpServer->stop();
-                tun.reset();
-                tun = nullptr;
             });
         });
 

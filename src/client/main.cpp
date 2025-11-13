@@ -21,7 +21,7 @@ volatile sig_atomic_t done = 0;
 
 void signalHandler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
-        log("Received termination signal. Shutting down client.");
+        //log("Received termination signal. Shutting down client.");
         done = 1;
     }
 }
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun1");
         log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
@@ -82,37 +82,31 @@ int main(int argc, char** argv) {
         std::thread ioThread([&io]() {
             io.run();
         });
-        ioThread.detach();
+        //ioThread.join();
 
         log("Client connected to " + host + ":" + port);
-
+        
         // Client is running
-        // TODO: SIGINT or SIGTERM seems to not kill this instantly!
         while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
             auto packet = tun->readPacket();
-
-            Nonce nonce{};
-            randombytes_buf(nonce.data(), nonce.size());
-
-            auto ciphertext = LibSodiumWrapper::encryptMessage(
-                packet.data(), packet.size(),
-                aesKey,
-                nonce,
-                "udp-data"
-            );
-
-            std::vector<uint8_t> udpPayload;
-            udpPayload.insert(udpPayload.end(), nonce.begin(), nonce.end());
-            udpPayload.insert(udpPayload.end(), reinterpret_cast<uint8_t*>(&sessionID), reinterpret_cast<uint8_t*>(&sessionID) + sizeof(sessionID));
-            udpPayload.insert(udpPayload.end(), ciphertext.begin(), ciphertext.end());
-            udpClient->sendMessage(std::string(udpPayload.begin(), udpPayload.end()));
+            if (!client->isConnected() || done) {
+                break; // Bail out if connection died or signal set while blocked
+            }
+            
+            if (packet.empty()) {
+                continue;
+            }
+            
+            udpClient->sendMessage(std::string(packet.begin(), packet.end()));
         }
 
         log("Client shutting down.");
         udpClient->stop();
         client->disconnect();
         io.stop();
-        ioThread.join();
+
+        if (ioThread.joinable())
+            ioThread.join();
 
     } catch (const std::exception& e) {
         error("Client error: " + std::string(e.what()));

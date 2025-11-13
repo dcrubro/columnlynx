@@ -93,8 +93,12 @@ namespace ColumnLynx::Net {
     #if defined(__linux__) || defined(__APPLE__)
         std::vector<uint8_t> buf(4096);
         ssize_t n = read(mFd, buf.data(), buf.size());
-        if (n < 0)
+        if (n < 0) {
+            if (errno == EINTR) {
+                return {}; // Interrupted, return empty
+            }
             throw std::runtime_error("read() failed: " + std::string(strerror(errno)));
+        }
         buf.resize(n);
         return buf;
 
