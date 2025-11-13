@@ -13,6 +13,8 @@
 #include <array>
 #include <algorithm>
 #include <vector>
+#include <columnlynx/common/net/protocol_structs.hpp>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;
 
@@ -25,7 +27,8 @@ namespace ColumnLynx::Net::TCP {
                       Utils::LibSodiumWrapper* sodiumWrapper,
                       std::array<uint8_t, 32>* aesKey,
                       uint64_t* sessionIDRef,
-                      bool* insecureMode)
+                      bool* insecureMode,
+                      VirtualInterface* tun = nullptr)
                 :
                 mResolver(ioContext),
                 mSocket(ioContext),
@@ -70,5 +73,7 @@ namespace ColumnLynx::Net::TCP {
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
             bool mIsHostDomain;
+            Protocol::TunConfig mTunConfig;
+            VirtualInterface* mTun = nullptr;
     };
 }

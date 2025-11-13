@@ -41,6 +41,9 @@ namespace ColumnLynx::Net::TCP {
         mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
         mHandler->socket().close(ec);
 
+        SessionRegistry::getInstance().erase(mConnectionSessionID);
+        SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
+
         Utils::log("Closed connection to " + ip);
 
         if (mOnDisconnect) {
@@ -174,16 +177,33 @@ namespace ColumnLynx::Net::TCP {
 
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
-                    std::vector<uint8_t> encryptedSessionID = Utils::LibSodiumWrapper::encryptMessage(
-                        reinterpret_cast<uint8_t*>(&mConnectionSessionID), sizeof(mConnectionSessionID),
+
+                    uint32_t clientIP = SessionRegistry::getInstance().getFirstAvailableIP();
+                    Protocol::TunConfig tunConfig{};
+                    tunConfig.version = Utils::protocolVersion();
+                    tunConfig.prefixLength = 24;
+                    tunConfig.mtu = 1420;
+                    tunConfig.serverIP = htonl(0x0A0A0001); // 10.10.0.1
+                    tunConfig.clientIP = htonl(clientIP); // 10.10.0.X
+                    tunConfig.dns1 = htonl(0x08080808);    // 8.8.8.8
+                    tunConfig.dns2 = 0;
+
+                    SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
+
+                    std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
+                    std::memcpy(payload.data(), &mConnectionSessionID, sizeof(uint64_t));
+                    std::memcpy(payload.data() + sizeof(uint64_t), &tunConfig, sizeof(tunConfig));
+
+                    std::vector<uint8_t> encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
+                        payload.data(), payload.size(),
                         mConnectionAESKey, symNonce
                     );
 
-                    mHandler->sendMessage(ServerMessageType::HANDSHAKE_EXCHANGE_KEY_CONFIRM, Utils::uint8ArrayToString(encryptedSessionID.data(), encryptedSessionID.size()));
+                    mHandler->sendMessage(ServerMessageType::HANDSHAKE_EXCHANGE_KEY_CONFIRM, Utils::uint8ArrayToString(encryptedPayload.data(), encryptedPayload.size()));
 
                     // Add to session registry
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned.");
-                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12));
+                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
 
                 } catch (const std::exception& e) {

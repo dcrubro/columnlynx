@@ -107,5 +107,10 @@ namespace ColumnLynx::Net::UDP {
         }
 
         Utils::log("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
+
+        // Write to TUN
+        if (mTunRef) {
+            mTunRef->writePacket(plaintext);
+        }
     }
 }

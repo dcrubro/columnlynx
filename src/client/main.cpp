@@ -15,6 +15,7 @@
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net;
+using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        VirtualInterface tun("columnlynxtun0");
+        VirtualInterface tun("utun1");
         log("Using virtual interface: " + tun.getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
@@ -71,8 +72,8 @@ int main(int argc, char** argv) {
         uint64_t sessionID = 0;
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode, &tun);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID, &tun);
 
         client->start();
         udpClient->start();
@@ -88,18 +89,25 @@ int main(int argc, char** argv) {
         // Client is running
         // TODO: SIGINT or SIGTERM seems to not kill this instantly!
         while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
+            auto packet = tun.readPacket();
 
-            if (client->isHandshakeComplete()) {
-                // Send a test UDP message every 5 seconds after handshake is complete
-                static auto lastSendTime = std::chrono::steady_clock::now();
-                auto now = std::chrono::steady_clock::now();
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count() >= 5) {
-                    udpClient->sendMessage("Hello from UDP client!");
-                    lastSendTime = now;
-                }
-            }
+            Nonce nonce{};
+            randombytes_buf(nonce.data(), nonce.size());
+
+            auto ciphertext = LibSodiumWrapper::encryptMessage(
+                packet.data(), packet.size(),
+                aesKey,
+                nonce,
+                "udp-data"
+            );
+
+            std::vector<uint8_t> udpPayload;
+            udpPayload.insert(udpPayload.end(), nonce.begin(), nonce.end());
+            udpPayload.insert(udpPayload.end(), reinterpret_cast<uint8_t*>(&sessionID), reinterpret_cast<uint8_t*>(&sessionID) + sizeof(sessionID));
+            udpPayload.insert(udpPayload.end(), ciphertext.begin(), ciphertext.end());
+            udpClient->sendMessage(std::string(udpPayload.begin(), udpPayload.end()));
         }
+
         log("Client shutting down.");
         udpClient->stop();
         client->disconnect();

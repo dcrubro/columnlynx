@@ -17,6 +17,7 @@
     #include <sys/ioctl.h>
     #include <linux/if.h>
     #include <linux/if_tun.h>
+    #include <arpa/inet.h>
 #elif defined(__APPLE__)
     #include <sys/socket.h>
     #include <sys/kern_control.h>
@@ -24,8 +25,11 @@
     #include <net/if_utun.h>
     #include <sys/ioctl.h>
     #include <unistd.h>
+    #include <arpa/inet.h>
 #elif defined(_WIN32)
     #include <windows.h>
+    #include <ws2tcpip.h>
+    #include <winsock2.h>
     #include <wintun/wintun.h>
     #pragma comment(lib, "advapi32.lib")
 #endif
@@ -36,12 +40,31 @@ namespace ColumnLynx::Net {
             explicit VirtualInterface(const std::string& ifName);
             ~VirtualInterface();
 
+            bool configureIP(uint32_t clientIP, uint32_t serverIP,
+                             uint8_t prefixLen, uint16_t mtu);
+
             std::vector<uint8_t> readPacket();
             void writePacket(const std::vector<uint8_t>& packet);
 
             const std::string& getName() const;
-            int getFd() const; // for ASIO integration (on POSIX)
+            int getFd() const; // For ASIO integration (on POSIX)
+
+            static inline std::string ipToString(uint32_t ip) {
+                struct in_addr addr;
+                addr.s_addr = ip; // expected in network byte order
+            
+                char buf[INET_ADDRSTRLEN];
+                if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf)))
+                    return "0.0.0.0";
+            
+                return std::string(buf);
+            }
+
         private:
+            bool mApplyLinuxIP(uint32_t clientIP, uint32_t serverIP, uint8_t prefixLen, uint16_t mtu);
+            bool mApplyMacOSIP(uint32_t clientIP, uint32_t serverIP, uint8_t prefixLen, uint16_t mtu);
+            bool mApplyWindowsIP(uint32_t clientIP, uint32_t serverIP, uint8_t prefixLen, uint16_t mtu);
+
             std::string mIfName;
             int mFd;           // POSIX
         #if defined(_WIN32)

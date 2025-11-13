@@ -62,16 +62,16 @@ namespace ColumnLynx::Net::UDP {
             // For now, just log the decrypted payload
             std::string payloadStr(plaintext.begin(), plaintext.end());
             Utils::log("UDP: Received packet from " + mRemoteEndpoint.address().to_string() + " - Payload: " + payloadStr);
-
-            // TODO: Process the packet payload, for now just echo back
-            mSendData(sessionID, std::string(plaintext.begin(), plaintext.end()));
+            if (mTun) {
+                mTun->writePacket(plaintext); // Send to virtual interface
+            }
         } catch (...) {
             Utils::warn("UDP: Failed to decrypt payload from " + mRemoteEndpoint.address().to_string());
             return;
         }
     }
 
-    void UDPServer::mSendData(const uint64_t sessionID, const std::string& data) {
+    void UDPServer::sendData(const uint64_t sessionID, const std::string& data) {
         // Find the IPv4/IPv6 endpoint for the session
         std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
         if (!session) {

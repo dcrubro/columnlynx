@@ -14,37 +14,37 @@ namespace ColumnLynx::Net {
         mFd = open("/dev/net/tun", O_RDWR);
         if (mFd < 0)
             throw std::runtime_error("Failed to open /dev/net/tun: " + std::string(strerror(errno)));
-    
+
         struct ifreq ifr {};
         ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
         std::strncpy(ifr.ifr_name, ifName.c_str(), IFNAMSIZ);
-    
+
         if (ioctl(mFd, TUNSETIFF, &ifr) < 0) {
             close(mFd);
             throw std::runtime_error("TUNSETIFF failed: " + std::string(strerror(errno)));
         }
-    
+
     #elif defined(__APPLE__)
         // ---- macOS: UTUN (system control socket) ----
         mFd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
         if (mFd < 0)
             throw std::runtime_error("socket(PF_SYSTEM) failed: " + std::string(strerror(errno)));
-    
+
         struct ctl_info ctlInfo {};
         std::strncpy(ctlInfo.ctl_name, UTUN_CONTROL_NAME, sizeof(ctlInfo.ctl_name));
         if (ioctl(mFd, CTLIOCGINFO, &ctlInfo) == -1)
             throw std::runtime_error("ioctl(CTLIOCGINFO) failed: " + std::string(strerror(errno)));
-    
+
         struct sockaddr_ctl sc {};
         sc.sc_len = sizeof(sc);
         sc.sc_family = AF_SYSTEM;
         sc.ss_sysaddr = AF_SYS_CONTROL;
         sc.sc_id = ctlInfo.ctl_id;
         sc.sc_unit = 0; // utun0 (0 = auto-assign)
-    
+
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0)
             throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
-    
+
         // Retrieve actual utun device name
         struct sockaddr_storage addr;
         socklen_t addrlen = sizeof(addr);
@@ -54,28 +54,28 @@ namespace ColumnLynx::Net {
         } else {
             mIfName = "utunX";
         }
-    
+
     #elif defined(_WIN32)
         // ---- Windows: Wintun (WireGuard virtual adapter) ----
         WINTUN_ADAPTER_HANDLE adapter =
             WintunOpenAdapter(L"ColumnLynx", std::wstring(ifName.begin(), ifName.end()).c_str());
         if (!adapter)
             throw std::runtime_error("Wintun adapter not found or not installed");
-    
+
         WINTUN_SESSION_HANDLE session =
             WintunStartSession(adapter, 0x200000); // ring buffer size
         if (!session)
             throw std::runtime_error("Failed to start Wintun session");
-    
+
         mHandle = WintunGetReadWaitEvent(session);
         mFd = -1; // not used on Windows
         mIfName = ifName;
-    
+
     #else
         throw std::runtime_error("Unsupported platform");
     #endif
     }
-    
+
     // ------------------------------ Destructor ------------------------------
     VirtualInterface::~VirtualInterface() {
     #if defined(__linux__) || defined(__APPLE__)
@@ -87,7 +87,7 @@ namespace ColumnLynx::Net {
         // WintunEndSession(mSession);
     #endif
     }
-    
+
     // ------------------------------ Read ------------------------------
     std::vector<uint8_t> VirtualInterface::readPacket() {
     #if defined(__linux__) || defined(__APPLE__)
@@ -97,7 +97,7 @@ namespace ColumnLynx::Net {
             throw std::runtime_error("read() failed: " + std::string(strerror(errno)));
         buf.resize(n);
         return buf;
-    
+
     #elif defined(_WIN32)
         WINTUN_PACKET* packet = WintunReceivePacket(mSession, nullptr);
         if (!packet) return {};
@@ -108,14 +108,14 @@ namespace ColumnLynx::Net {
         return {};
     #endif
     }
-    
+
     // ------------------------------ Write ------------------------------
     void VirtualInterface::writePacket(const std::vector<uint8_t>& packet) {
     #if defined(__linux__) || defined(__APPLE__)
         ssize_t n = write(mFd, packet.data(), packet.size());
         if (n < 0)
             throw std::runtime_error("write() failed: " + std::string(strerror(errno)));
-    
+
     #elif defined(_WIN32)
         WINTUN_PACKET* tx = WintunAllocateSendPacket(mSession, (DWORD)packet.size());
         if (!tx) throw std::runtime_error("WintunAllocateSendPacket failed");
@@ -123,9 +123,93 @@ namespace ColumnLynx::Net {
         WintunSendPacket(mSession, tx);
     #endif
     }
-    
+
     // ------------------------------ Accessors ------------------------------
     const std::string& VirtualInterface::getName() const { return mIfName; }
-    
+
     int VirtualInterface::getFd() const { return mFd; }
-}
+
+    // ------------------------------------------------------------
+    //  IP CONFIGURATION
+    // ------------------------------------------------------------
+    bool VirtualInterface::configureIP(uint32_t clientIP, uint32_t serverIP,
+                                       uint8_t prefixLen, uint16_t mtu)
+    {
+    #if defined(__linux__)
+        return mApplyLinuxIP(clientIP, serverIP, prefixLen, mtu);
+    #elif defined(__APPLE__)
+        return mApplyMacOSIP(clientIP, serverIP, prefixLen, mtu);
+    #elif defined(_WIN32)
+        return mApplyWindowsIP(clientIP, serverIP, prefixLen, mtu);
+    #else
+        return false;
+    #endif
+    }
+    
+    // ------------------------------------------------------------
+    // Linux
+    // ------------------------------------------------------------
+    bool VirtualInterface::mApplyLinuxIP(uint32_t clientIP, uint32_t serverIP,
+                                        uint8_t prefixLen, uint16_t mtu)
+    {
+        char cmd[512];
+    
+        std::string ipStr = ipToString(clientIP);
+        std::string peerStr = ipToString(serverIP);
+    
+        snprintf(cmd, sizeof(cmd),
+                 "ip addr add %s/%d peer %s dev %s",
+                 ipStr.c_str(), prefixLen, peerStr.c_str(), mIfName.c_str());
+        system(cmd);
+    
+        snprintf(cmd, sizeof(cmd),
+                 "ip link set dev %s up mtu %d", mIfName.c_str(), mtu);
+        system(cmd);
+    
+        return true;
+    }
+    
+    // ------------------------------------------------------------
+    // macOS (utun)
+    // ------------------------------------------------------------
+    bool VirtualInterface::mApplyMacOSIP(uint32_t clientIP, uint32_t serverIP,
+                                        uint8_t prefixLen, uint16_t mtu)
+    {
+        char cmd[512];
+    
+        std::string ipStr = ipToString(clientIP);
+        std::string peerStr = ipToString(serverIP);
+    
+        snprintf(cmd, sizeof(cmd),
+                "ifconfig utun0 %s %s mtu %d up",
+                 ipStr.c_str(), peerStr.c_str(), mtu);
+        system(cmd);
+    
+        return true;
+    }
+    
+    // ------------------------------------------------------------
+    // Windows (Wintun)
+    // ------------------------------------------------------------
+    bool VirtualInterface::mApplyWindowsIP(uint32_t clientIP, uint32_t serverIP,
+                                          uint8_t prefixLen, uint16_t mtu)
+    {
+    #ifdef _WIN32
+        char ip[32], gw[32];
+        strcpy(ip, ipToString(clientIP).c_str());
+        strcpy(gw, ipToString(serverIP).c_str());
+    
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd),
+                 "netsh interface ip set address name=\"%s\" static %s %d.%d.%d.%d",
+                 mIfName.c_str(), ip,
+                 (prefixLen <= 8) ? ((prefixLen << 3) & 255) : 255,
+                 255, 255, 255);
+        system(cmd);
+    
+        return true;
+    #else
+        return false;
+    #endif
+    }
+} // namespace ColumnLynx::Net

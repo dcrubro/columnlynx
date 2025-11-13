@@ -11,11 +11,14 @@
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <unordered_set>
 #include <cxxopts/cxxopts.hpp>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net::TCP;
 using namespace ColumnLynx::Net::UDP;
+using namespace ColumnLynx::Net;
+using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
@@ -54,6 +57,13 @@ int main(int argc, char** argv) {
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
+#if defined(__WIN32__)
+        WintunInitialize();
+#endif
+
+        VirtualInterface tun("utun0");
+        log("Using virtual interface: " + tun.getName());
+
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
@@ -64,7 +74,7 @@ int main(int argc, char** argv) {
         asio::io_context io;
 
         auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning, ipv4Only);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only, &tun);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
@@ -87,7 +97,21 @@ int main(int argc, char** argv) {
         log("Server started on port " + std::to_string(serverPort()));
         
         while (!done) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            auto packet = tun.readPacket();
+            if (packet.empty()) {
+                continue;
+            }
+
+            const uint8_t* ip = packet.data();
+            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset in IPv6-mapped header
+        
+            auto session = SessionRegistry::getInstance().getByIP(dstIP);
+            if (!session) {
+                Utils::warn("TUN: No session found for destination IP " + VirtualInterface::ipToString(dstIP));
+                continue;
+            }
+
+            udpServer->sendData(session->sessionID, std::string(packet.begin(), packet.end()));
         }
 
         log("Shutting down server...");

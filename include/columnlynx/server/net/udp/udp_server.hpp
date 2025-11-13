@@ -8,12 +8,13 @@
 #include <columnlynx/common/net/udp/udp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <array>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 namespace ColumnLynx::Net::UDP {
     class UDPServer {
         public:
-            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning, bool ipv4Only = false)
-                : mSocket(ioContext), mHostRunning(hostRunning)
+            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning, bool ipv4Only = false, VirtualInterface* tun = nullptr)
+                : mSocket(ioContext), mHostRunning(hostRunning), mTun(tun)
             {
                 asio::error_code ec;
 
@@ -43,13 +44,15 @@ namespace ColumnLynx::Net::UDP {
 
             void stop();
 
+            void sendData(const uint64_t sessionID, const std::string& data);
+
         private:
             void mStartReceive();
             void mHandlePacket(std::size_t bytes);
-            void mSendData(const uint64_t sessionID, const std::string& data);
             asio::ip::udp::socket mSocket;
             asio::ip::udp::endpoint mRemoteEndpoint;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
             bool* mHostRunning;
+            VirtualInterface* mTun;
     };
 }
