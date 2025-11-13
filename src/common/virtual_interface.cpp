@@ -42,8 +42,11 @@ namespace ColumnLynx::Net {
         sc.sc_id = ctlInfo.ctl_id;
         sc.sc_unit = 0; // utun0 (0 = auto-assign)
 
-        if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0)
+        if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
+            if (errno == EPERM)
+                throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running as root)");
             throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
+        }
 
         // Retrieve actual utun device name
         struct sockaddr_storage addr;
