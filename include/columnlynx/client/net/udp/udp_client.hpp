@@ -19,7 +19,7 @@ namespace ColumnLynx::Net::UDP {
                       const std::string& port,
                       std::array<uint8_t, 32>* aesKeyRef,
                       uint64_t* sessionIDRef,
-                      VirtualInterface* tunRef = nullptr)
+                      std::shared_ptr<VirtualInterface> tunRef = nullptr)
                 : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef), mTunRef(tunRef) { mStartReceive(); }
 
             void start();
@@ -37,7 +37,7 @@ namespace ColumnLynx::Net::UDP {
             std::string mPort;
             std::array<uint8_t, 32>* mAesKeyRef;
             uint64_t* mSessionIDRef;
-            VirtualInterface* mTunRef;
+            std::shared_ptr<VirtualInterface> mTunRef = nullptr;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
     };
 }

@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        VirtualInterface tun("utun1");
-        log("Using virtual interface: " + tun.getName());
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
@@ -72,8 +72,8 @@ int main(int argc, char** argv) {
         uint64_t sessionID = 0;
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode, &tun);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID, &tun);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode, tun);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID, tun);
 
         client->start();
         udpClient->start();
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
         // Client is running
         // TODO: SIGINT or SIGTERM seems to not kill this instantly!
         while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
-            auto packet = tun.readPacket();
+            auto packet = tun->readPacket();
 
             Nonce nonce{};
             randombytes_buf(nonce.data(), nonce.size());

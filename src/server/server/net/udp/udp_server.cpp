@@ -62,6 +62,7 @@ namespace ColumnLynx::Net::UDP {
             // For now, just log the decrypted payload
             std::string payloadStr(plaintext.begin(), plaintext.end());
             Utils::log("UDP: Received packet from " + mRemoteEndpoint.address().to_string() + " - Payload: " + payloadStr);
+
             if (mTun) {
                 mTun->writePacket(plaintext); // Send to virtual interface
             }

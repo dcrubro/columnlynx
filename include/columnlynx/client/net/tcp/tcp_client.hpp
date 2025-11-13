@@ -28,7 +28,7 @@ namespace ColumnLynx::Net::TCP {
                       std::array<uint8_t, 32>* aesKey,
                       uint64_t* sessionIDRef,
                       bool* insecureMode,
-                      VirtualInterface* tun = nullptr)
+                      std::shared_ptr<VirtualInterface> tun = nullptr)
                 :
                 mResolver(ioContext),
                 mSocket(ioContext),
@@ -74,6 +74,6 @@ namespace ColumnLynx::Net::TCP {
             int mMissedHeartbeats = 0;
             bool mIsHostDomain;
             Protocol::TunConfig mTunConfig;
-            VirtualInterface* mTun = nullptr;
+            std::shared_ptr<VirtualInterface> mTun = nullptr;
     };
 }

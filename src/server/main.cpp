@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        VirtualInterface tun("utun0");
-        log("Using virtual interface: " + tun.getName());
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
         asio::io_context io;
 
         auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning, ipv4Only);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only, &tun);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only, tun);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
@@ -84,6 +84,8 @@ int main(int argc, char** argv) {
                 hostRunning = false;
                 server->stop();
                 udpServer->stop();
+                tun.reset();
+                tun = nullptr;
             });
         });
 
@@ -97,7 +99,7 @@ int main(int argc, char** argv) {
         log("Server started on port " + std::to_string(serverPort()));
         
         while (!done) {
-            auto packet = tun.readPacket();
+            auto packet = tun->readPacket();
             if (packet.empty()) {
                 continue;
             }
