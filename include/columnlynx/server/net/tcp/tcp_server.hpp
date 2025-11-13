@@ -16,6 +16,7 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/server/net/tcp/tcp_connection.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
+#include <columnlynx/common/net/protocol_structs.hpp>
 
 namespace ColumnLynx::Net::TCP {
 

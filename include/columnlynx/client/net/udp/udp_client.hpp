@@ -9,6 +9,7 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <array>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 namespace ColumnLynx::Net::UDP {
     class UDPClient {
@@ -17,8 +18,12 @@ namespace ColumnLynx::Net::UDP {
                       const std::string& host,
                       const std::string& port,
                       std::array<uint8_t, 32>* aesKeyRef,
-                      uint64_t* sessionIDRef)
-                : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef) { mStartReceive(); }
+                      uint64_t* sessionIDRef,
+                      std::shared_ptr<VirtualInterface> tunRef = nullptr)
+                : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef), mTunRef(tunRef) 
+            {
+                mStartReceive(); 
+            }
 
             void start();
             void sendMessage(const std::string& data = "");
@@ -35,6 +40,7 @@ namespace ColumnLynx::Net::UDP {
             std::string mPort;
             std::array<uint8_t, 32>* mAesKeyRef;
             uint64_t* mSessionIDRef;
+            std::shared_ptr<VirtualInterface> mTunRef = nullptr;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
     };
 }

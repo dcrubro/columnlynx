@@ -16,6 +16,7 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <columnlynx/common/net/session_registry.hpp>
+#include <columnlynx/common/net/protocol_structs.hpp>
 
 namespace ColumnLynx::Net::TCP {
     class TCPConnection : public std::enable_shared_from_this<TCPConnection> {

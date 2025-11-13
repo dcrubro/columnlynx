@@ -239,17 +239,27 @@ namespace ColumnLynx::Net::TCP {
                         mConnectionAESKey, symNonce
                     );
 
-                    if (decrypted.size() != sizeof(mConnectionSessionID)) {
-                        Utils::error("Decrypted session ID has invalid size. Terminating connection.");
+                    if (decrypted.size() != sizeof(mConnectionSessionID) + sizeof(Protocol::TunConfig)) {
+                        Utils::error("Decrypted config has invalid size. Terminating connection.");
                         disconnect();
                         return;
                     }
 
                     std::memcpy(&mConnectionSessionID, decrypted.data(), sizeof(mConnectionSessionID));
+                    std::memcpy(&mTunConfig, decrypted.data() + sizeof(mConnectionSessionID), sizeof(Protocol::TunConfig));
                     Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
                 
                     if (mSessionIDRef) { // Copy to the global reference
                         *mSessionIDRef = mConnectionSessionID;
+                    }
+
+                    uint32_t clientIP = ntohl(mTunConfig.clientIP);
+                    uint32_t serverIP = ntohl(mTunConfig.serverIP);
+                    uint8_t prefixLen = mTunConfig.prefixLength;
+                    uint16_t mtu = mTunConfig.mtu;
+
+                    if (mTun) {
+                        mTun->configureIP(clientIP, serverIP, prefixLen, mtu);
                     }
 
                     mHandshakeComplete = true;

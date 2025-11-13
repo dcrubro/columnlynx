@@ -15,12 +15,13 @@
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net;
+using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
 void signalHandler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
-        log("Received termination signal. Shutting down client.");
+        //log("Received termination signal. Shutting down client.");
         done = 1;
     }
 }
@@ -62,8 +63,8 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        VirtualInterface tun("columnlynxtun0");
-        log("Using virtual interface: " + tun.getName());
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
 
@@ -71,8 +72,8 @@ int main(int argc, char** argv) {
         uint64_t sessionID = 0;
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode, tun);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID, tun);
 
         client->start();
         udpClient->start();
@@ -81,30 +82,31 @@ int main(int argc, char** argv) {
         std::thread ioThread([&io]() {
             io.run();
         });
-        ioThread.detach();
+        //ioThread.join();
 
         log("Client connected to " + host + ":" + port);
-
+        
         // Client is running
-        // TODO: SIGINT or SIGTERM seems to not kill this instantly!
         while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Temp wait
-
-            if (client->isHandshakeComplete()) {
-                // Send a test UDP message every 5 seconds after handshake is complete
-                static auto lastSendTime = std::chrono::steady_clock::now();
-                auto now = std::chrono::steady_clock::now();
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - lastSendTime).count() >= 5) {
-                    udpClient->sendMessage("Hello from UDP client!");
-                    lastSendTime = now;
-                }
+            auto packet = tun->readPacket();
+            if (!client->isConnected() || done) {
+                break; // Bail out if connection died or signal set while blocked
             }
+            
+            if (packet.empty()) {
+                continue;
+            }
+            
+            udpClient->sendMessage(std::string(packet.begin(), packet.end()));
         }
+
         log("Client shutting down.");
         udpClient->stop();
         client->disconnect();
         io.stop();
-        ioThread.join();
+
+        if (ioThread.joinable())
+            ioThread.join();
 
     } catch (const std::exception& e) {
         error("Client error: " + std::string(e.what()));

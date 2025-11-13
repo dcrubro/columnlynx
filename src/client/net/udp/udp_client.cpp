@@ -6,6 +6,7 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPClient::start() {
+        // TODO: Add IPv6
         auto endpoints = mResolver.resolve(asio::ip::udp::v4(), mHost, mPort);
         mRemoteEndpoint = *endpoints.begin();
         mSocket.open(asio::ip::udp::v4());
@@ -107,5 +108,10 @@ namespace ColumnLynx::Net::UDP {
         }
 
         Utils::log("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
+
+        // Write to TUN
+        if (mTunRef) {
+            mTunRef->writePacket(plaintext);
+        }
     }
 }
