@@ -187,18 +187,13 @@ namespace ColumnLynx::Net {
         std::string ipStr = ipToString(clientIP);
         std::string peerStr = ipToString(serverIP);
     
+        // Set netmask (/24 CIDR temporarily with raw command, improve later)
         snprintf(cmd, sizeof(cmd),
-                "ifconfig utun0 %s %s mtu %d up",
+                "ifconfig utun0 %s %s mtu %d netmask 255.255.255.0 up",
                  ipStr.c_str(), peerStr.c_str(), mtu);
         system(cmd);
 
-        // Reset cmd buffer
-        cmd[0] = '\0';
-
-        // Set netmask (/24 CIDR temporarily with raw command, improve later)
-        snprintf(cmd, sizeof(cmd),
-                 "ifconfig utun0 netmask 255.255.255.0");
-        system(cmd);
+        Utils::log("Executed command: " + std::string(cmd));
     
         return true;
     }
