@@ -60,6 +60,12 @@ namespace ColumnLynx::Net {
                 return std::string(buf);
             }
 
+            static inline uint32_t prefixLengthToNetmask(uint8_t prefixLen) {
+                if (prefixLen == 0) return 0;
+                uint32_t mask = (0xFFFFFFFF << (32 - prefixLen)) & 0xFFFFFFFF;
+                return htonl(mask);    // convert to network byte order
+            }
+
         private:
             bool mApplyLinuxIP(uint32_t clientIP, uint32_t serverIP, uint8_t prefixLen, uint16_t mtu);
             bool mApplyMacOSIP(uint32_t clientIP, uint32_t serverIP, uint8_t prefixLen, uint16_t mtu);
