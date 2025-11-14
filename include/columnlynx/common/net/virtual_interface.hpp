@@ -51,7 +51,7 @@ namespace ColumnLynx::Net {
 
             static inline std::string ipToString(uint32_t ip) {
                 struct in_addr addr;
-                addr.s_addr = ip; // expected in network byte order
+                addr.s_addr = htonl(ip);
             
                 char buf[INET_ADDRSTRLEN];
                 if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf)))
