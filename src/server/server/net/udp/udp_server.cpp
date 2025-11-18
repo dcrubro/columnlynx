@@ -10,12 +10,6 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPServer::mStartReceive() {
-        // A bit of a shotty implementation, might improve later
-        /*if (mHostRunning != nullptr && !(*mHostRunning)) {
-            Utils::log("Server is stopping, not receiving new packets.");
-            return;
-        }*/
-
         mSocket.async_receive_from(
             asio::buffer(mRecvBuffer), mRemoteEndpoint,
             [this](asio::error_code ec, std::size_t bytes) {
@@ -69,17 +63,16 @@ namespace ColumnLynx::Net::UDP {
             std::string payloadStr(plaintext.begin(), plaintext.end());
             Utils::log("UDP: Received packet from " + mRemoteEndpoint.address().to_string() + " - Payload: " + payloadStr);
 
-            // TODO: Process the packet payload, for now just echo back
-            mSendData(sessionID, std::string(plaintext.begin(), plaintext.end()));
+            if (mTun) {
+                mTun->writePacket(plaintext); // Send to virtual interface
+            }
         } catch (...) {
             Utils::warn("UDP: Failed to decrypt payload from " + mRemoteEndpoint.address().to_string());
             return;
         }
     }
 
-    void UDPServer::mSendData(const uint64_t sessionID, const std::string& data) {
-        // TODO: Implement
-
+    void UDPServer::sendData(const uint64_t sessionID, const std::string& data) {
         // Find the IPv4/IPv6 endpoint for the session
         std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
         if (!session) {
