@@ -10,46 +10,71 @@
 #include <columnlynx/server/net/udp/udp_server.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <unordered_set>
+#include <cxxopts/cxxopts.hpp>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net::TCP;
 using namespace ColumnLynx::Net::UDP;
+using namespace ColumnLynx::Net;
+using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
-/*void signalHandler(int signum) {
+void signalHandler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
         log("Received termination signal. Shutting down server gracefully.");
         done = 1;
     }
-}*/
+}
 
 int main(int argc, char** argv) {
+    // Capture SIGINT and SIGTERM for graceful shutdown
+    struct sigaction action;
+    memset(&action, 0, sizeof(struct sigaction));
+    action.sa_handler = signalHandler;
+    sigaction(SIGINT, &action, nullptr);
+    sigaction(SIGTERM, &action, nullptr);
+
+    cxxopts::Options options("columnlynx_server", "ColumnLynx Server Application");
+
+    options.add_options()
+        ("h,help", "Print help")
+        ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"));
+
     PanicHandler::init();
 
     try {
-        // Catch SIGINT and SIGTERM for graceful shutdown
-        /*struct sigaction action;
-        memset(&action, 0, sizeof(struct sigaction));
-        action.sa_handler = signalHandler;
-        sigaction(SIGINT, &action, nullptr);
-        sigaction(SIGTERM, &action, nullptr);*/
+        auto result = options.parse(argc, argv);
+        if (result.count("help")) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
+
+        bool ipv4Only = result["ipv4-only"].as<bool>();
 
         log("ColumnLynx Server, Version " + getVersion());
-        log("This software is licensed under the GPLv3. See LICENSE for details.");
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
+
+#if defined(__WIN32__)
+        WintunInitialize();
+#endif
+
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
-        log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
+        //log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
 
         bool hostRunning = true;
 
         asio::io_context io;
 
-        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning);
+        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning, ipv4Only);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only, tun);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
@@ -72,7 +97,21 @@ int main(int argc, char** argv) {
         log("Server started on port " + std::to_string(serverPort()));
         
         while (!done) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            auto packet = tun->readPacket();
+            if (packet.empty()) {
+                continue;
+            }
+
+            const uint8_t* ip = packet.data();
+            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset in IPv6-mapped header
+        
+            auto session = SessionRegistry::getInstance().getByIP(dstIP);
+            if (!session) {
+                Utils::warn("TUN: No session found for destination IP " + VirtualInterface::ipv4ToString(dstIP));
+                continue;
+            }
+
+            udpServer->sendData(session->sessionID, std::string(packet.begin(), packet.end()));
         }
 
         log("Shutting down server...");

@@ -1,6 +1,20 @@
 # ColumnLynx
 
-ColumnLynx is a VPN protocol designed to be as lightweight as possible.
+## What is it?
+
+ColumnLynx is a VPN protocol designed to be as lightweight and simple to understand as possible.
+
+### Origin
+
+The original goal of this project was for me to learn about the inner-workings of VPN protocols, but overtime, it has transformed into the goal seen above.
+
+### Design Philosophy
+
+A VPN (Virtual Private Network), in the most basic terms, is a protocol that tunnels network traffic from a client to a server over an encrypted tunnel and having the server send that traffic on its behalf. It can be catagorized into sitting somewhere in-between the 3rd and 4th layers of the ISO/OSI model.
+
+This project aims to be just that, an encrypted tunneling protocol that works on the 3rd and 4th layers of the ISO/OSI model, nothing more, nothing less. We leave complex functions like compression, to the higher layers (though it could be argued that making an encrypted tunnel already pushes us up to Layer 6).
+
+This simplicity-focused design approach allows us to make an efficient, low-overhead VPN protocol and minimize any potential attack surface.
 
 ## How does it work
 
@@ -94,6 +108,9 @@ The **Data** is generally just the **raw underlying packet** forwarded to the se
 | uint64_t | 8 bytes | **Header** - Session ID | The unique and random session identifier for the client |
 | uint8_t | variable | Data | General data / payload |
 
+## Misc.
+Building the binary for Windows requires the Wintun DLL. The include header is pre-packaged.
+
 ## Legal
 
 ### Copyright ownership:
@@ -137,5 +154,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 This project includes the [ASIO C++ Library](https://think-async.com/Asio/),
 distributed under the [Boost Software License, Version 1.0](https://www.boost.org/LICENSE_1_0.txt).
+
+This project includes the CXXOPTS Library
+distributed under the MIT License
+
+This project includes the [Wintun Library](https://www.wintun.net/), distributed under the MIT License or the GPL-2.0 License. This project utilizes it under the MIT license.
 
 *See **ATTRIBUTIONS.md** for details.*

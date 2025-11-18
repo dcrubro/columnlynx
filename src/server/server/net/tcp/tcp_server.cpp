@@ -20,14 +20,6 @@
 namespace ColumnLynx::Net::TCP {
 
     void TCPServer::mStartAccept() {
-        // A bit of a shotty implementation, might improve later
-        /*std::cout << "Host running pointer: " << *mHostRunning << std::endl;
-
-        if (mHostRunning != nullptr && !(*mHostRunning)) {
-            Utils::log("Server is stopping, not accepting new connections.");
-            return;
-        }*/
-
         mAcceptor.async_accept(
             [this](asio::error_code ec, asio::ip::tcp::socket socket) {
                 if (ec) {
