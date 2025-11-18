@@ -49,7 +49,7 @@ namespace ColumnLynx::Net {
             const std::string& getName() const;
             int getFd() const; // For ASIO integration (on POSIX)
 
-            static inline std::string ipToString(uint32_t ip) {
+            static inline std::string ipv4ToString(uint32_t ip) {
                 struct in_addr addr;
                 addr.s_addr = htonl(ip);
             

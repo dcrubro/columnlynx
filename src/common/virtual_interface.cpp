@@ -161,8 +161,8 @@ namespace ColumnLynx::Net {
     {
         char cmd[512];
     
-        std::string ipStr = ipToString(clientIP);
-        std::string peerStr = ipToString(serverIP);
+        std::string ipStr = ipv4ToString(clientIP);
+        std::string peerStr = ipv4ToString(serverIP);
     
         snprintf(cmd, sizeof(cmd),
                  "ip addr add %s/%d peer %s dev %s",
@@ -184,8 +184,8 @@ namespace ColumnLynx::Net {
     {
         char cmd[512];
     
-        std::string ipStr = ipToString(clientIP);
-        std::string peerStr = ipToString(serverIP);
+        std::string ipStr = ipv4ToString(clientIP);
+        std::string peerStr = ipv4ToString(serverIP);
     
         // Set netmask (/24 CIDR temporarily with raw command, improve later)
         snprintf(cmd, sizeof(cmd),
@@ -206,8 +206,8 @@ namespace ColumnLynx::Net {
     {
     #ifdef _WIN32
         char ip[32], gw[32];
-        strcpy(ip, ipToString(clientIP).c_str());
-        strcpy(gw, ipToString(serverIP).c_str());
+        strcpy(ip, ipv4ToString(clientIP).c_str());
+        strcpy(gw, ipv4ToString(serverIP).c_str());
     
         char cmd[256];
         snprintf(cmd, sizeof(cmd),

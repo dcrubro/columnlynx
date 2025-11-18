@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
         
             auto session = SessionRegistry::getInstance().getByIP(dstIP);
             if (!session) {
-                Utils::warn("TUN: No session found for destination IP " + VirtualInterface::ipToString(dstIP));
+                Utils::warn("TUN: No session found for destination IP " + VirtualInterface::ipv4ToString(dstIP));
                 continue;
             }
 
