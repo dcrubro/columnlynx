@@ -173,8 +173,6 @@ namespace ColumnLynx::Net::TCP {
                     // Make a Session ID
                     randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
 
-                    // TODO: Make the session ID little-endian for network transmission
-
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
@@ -190,8 +188,10 @@ namespace ColumnLynx::Net::TCP {
 
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
+                    uint64_t sessionIDNet = Utils::htobe64(mConnectionSessionID);
+
                     std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
-                    std::memcpy(payload.data(), &mConnectionSessionID, sizeof(uint64_t));
+                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint64_t));
                     std::memcpy(payload.data() + sizeof(uint64_t), &tunConfig, sizeof(tunConfig));
 
                     std::vector<uint8_t> encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(

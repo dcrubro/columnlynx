@@ -38,4 +38,23 @@ namespace ColumnLynx::Utils {
     inline std::string uint8ArrayToString(const uint8_t* data, size_t length) {
         return std::string(reinterpret_cast<const char*>(data), length);
     }
+
+    inline constexpr uint64_t bswap64(uint64_t x) {
+        return ((x & 0x00000000000000FFULL) << 56) |
+               ((x & 0x000000000000FF00ULL) << 40) |
+               ((x & 0x0000000000FF0000ULL) << 24) |
+               ((x & 0x00000000FF000000ULL) << 8)  |
+               ((x & 0x000000FF00000000ULL) >> 8)  |
+               ((x & 0x0000FF0000000000ULL) >> 24) |
+               ((x & 0x00FF000000000000ULL) >> 40) |
+               ((x & 0xFF00000000000000ULL) >> 56);
+    }
+
+    inline constexpr uint64_t htobe64(uint64_t x) {
+        return bswap64(x);   // host -> big-endian (for little-endian hosts)
+    }
+
+    inline constexpr uint64_t be64toh(uint64_t x) {
+        return bswap64(x);   // big-endian -> host (for little-endian hosts)
+    }
 };
