@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <cxxopts/cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
+//#include <nlohmann/json.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
@@ -41,7 +42,8 @@ int main(int argc, char** argv) {
 
     options.add_options()
         ("h,help", "Print help")
-        ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"));
+        ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"))
+        ("c,config", "Specify config file location", cxxopts::value<std::string>()->default_value("config.json"));
 
     PanicHandler::init();
 
@@ -53,6 +55,7 @@ int main(int argc, char** argv) {
         }
 
         bool ipv4Only = result["ipv4-only"].as<bool>();
+        std::string configPath = result["config"].as<std::string>();
 
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
@@ -63,6 +66,18 @@ int main(int argc, char** argv) {
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
         log("Using virtual interface: " + tun->getName());
+
+        /*
+        // Load the config
+        std::ifstream f(configPath);
+        if (!f) {
+            error("Could not open config.");
+            return 1;
+        }
+
+        nlohmann::json j;
+        f >> j; // parse
+        */
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

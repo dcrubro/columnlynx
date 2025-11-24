@@ -7,6 +7,10 @@
 #include <string>
 #include <cstdint>
 #include <array>
+#include <iomanip>
+#include <sstream>
+#include <vector>
+#include <fstream>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -25,9 +29,11 @@ namespace ColumnLynx::Utils {
     std::string getVersion();
     unsigned short serverPort();
     unsigned char protocolVersion();
+    std::vector<std::string> getWhitelistedKeys();
 
     // Raw byte to hex string conversion helper
     std::string bytesToHexString(const uint8_t* bytes, size_t length);
+    std::vector<uint8_t> hexStringToBytes(const std::string& hex);
 
     // uint8_t to raw string conversion helper
     template <size_t N>
@@ -39,7 +45,7 @@ namespace ColumnLynx::Utils {
         return std::string(reinterpret_cast<const char*>(data), length);
     }
 
-    inline constexpr uint64_t bswap64(uint64_t x) {
+    inline constexpr uint64_t cbswap64(uint64_t x) {
         return ((x & 0x00000000000000FFULL) << 56) |
                ((x & 0x000000000000FF00ULL) << 40) |
                ((x & 0x0000000000FF0000ULL) << 24) |
@@ -50,11 +56,11 @@ namespace ColumnLynx::Utils {
                ((x & 0xFF00000000000000ULL) >> 56);
     }
 
-    inline constexpr uint64_t htobe64(uint64_t x) {
-        return bswap64(x);   // host -> big-endian (for little-endian hosts)
+    inline constexpr uint64_t chtobe64(uint64_t x) {
+        return cbswap64(x);   // host -> big-endian (for little-endian hosts)
     }
 
-    inline constexpr uint64_t be64toh(uint64_t x) {
-        return bswap64(x);   // big-endian -> host (for little-endian hosts)
+    inline constexpr uint64_t cbe64toh(uint64_t x) {
+        return cbswap64(x);   // big-endian -> host (for little-endian hosts)
     }
 };

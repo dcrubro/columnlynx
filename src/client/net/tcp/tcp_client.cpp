@@ -28,7 +28,7 @@ namespace ColumnLynx::Net::TCP {
                                 // Check if hostname or IPv4/IPv6
                                 sockaddr_in addr4{};
                                 sockaddr_in6 addr6{};
-                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1;
+                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1; // Voodoo black magic
 
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
@@ -248,7 +248,7 @@ namespace ColumnLynx::Net::TCP {
                     std::memcpy(&mConnectionSessionID, decrypted.data(), sizeof(mConnectionSessionID));
                     std::memcpy(&mTunConfig, decrypted.data() + sizeof(mConnectionSessionID), sizeof(Protocol::TunConfig));
 
-                    mConnectionSessionID = Utils::be64toh(mConnectionSessionID);
+                    mConnectionSessionID = Utils::cbe64toh(mConnectionSessionID);
 
                     Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
                 

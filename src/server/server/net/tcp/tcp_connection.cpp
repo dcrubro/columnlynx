@@ -115,6 +115,14 @@ namespace ColumnLynx::Net::TCP {
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
                 std::memcpy(mConnectionPublicKey.data(), data.data() + 1, std::min(data.size() - 1, sizeof(mConnectionPublicKey))); // Store the client's public key (for identification)
+
+                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+
+                if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mConnectionPublicKey.data(), mConnectionPublicKey.size())) == whitelistedKeys.end()) {
+                    Utils::warn("Non-whitelisted client attempted to connect, terminating. Client IP: " + reqAddr);
+                    disconnect();
+                }
+
                 mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(mLibSodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
                 break;
             }
@@ -188,7 +196,7 @@ namespace ColumnLynx::Net::TCP {
 
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
-                    uint64_t sessionIDNet = Utils::htobe64(mConnectionSessionID);
+                    uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
 
                     std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
                     std::memcpy(payload.data(), &sessionIDNet, sizeof(uint64_t));

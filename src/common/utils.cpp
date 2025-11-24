@@ -61,4 +61,48 @@ namespace ColumnLynx::Utils {
 
         return hexString;
     }
+
+    std::vector<uint8_t> hexStringToBytes(const std::string& hex) {
+        // TODO: recover from errors
+
+        if (hex.length() % 2 != 0) {
+            throw std::invalid_argument("Hex string must have even length");
+        }
+    
+        auto hexValue = [](char c) -> uint8_t {
+            if ('0' <= c && c <= '9') return c - '0';
+            if ('A' <= c && c <= 'F') return c - 'A' + 10;
+            if ('a' <= c && c <= 'f') return c - 'a' + 10;
+            throw std::invalid_argument("Invalid hex character");
+        };
+    
+        size_t len = hex.length();
+        std::vector<uint8_t> bytes;
+        bytes.reserve(len / 2);
+    
+        for (size_t i = 0; i < len; i += 2) {
+            uint8_t high = hexValue(hex[i]);
+            uint8_t low  = hexValue(hex[i + 1]);
+            bytes.push_back((high << 4) | low);
+        }
+    
+        return bytes;
+    }
+
+    std::vector<std::string> getWhitelistedKeys() {
+        // Currently re-reads the file every time, should be fine.
+        // Advantage of it is that you don't need to reload the server binary after adding/removing keys. Disadvantage is re-reading the file every time.
+        // I might redo this part.
+
+        std::vector<std::string> out;
+
+        std::ifstream file("whitelisted_keys"); // TODO: This is hardcoded for now, make dynamic
+        std::string line;
+
+        while (std::getline(file, line)) {
+            out.push_back(line);
+        }
+
+        return out;
+    }
 }
