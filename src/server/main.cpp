@@ -12,7 +12,6 @@
 #include <unordered_set>
 #include <cxxopts/cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
-//#include <nlohmann/json.hpp>
 
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
@@ -66,18 +65,6 @@ int main(int argc, char** argv) {
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
         log("Using virtual interface: " + tun->getName());
-
-        /*
-        // Load the config
-        std::ifstream f(configPath);
-        if (!f) {
-            error("Could not open config.");
-            return 1;
-        }
-
-        nlohmann::json j;
-        f >> j; // parse
-        */
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

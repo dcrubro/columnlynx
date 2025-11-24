@@ -24,6 +24,7 @@ namespace ColumnLynx::Utils {
     void log(const std::string &msg);
     void warn(const std::string &msg);
     void error(const std::string &msg);
+    void debug(const std::string &msg);
 
     std::string getHostname();
     std::string getVersion();

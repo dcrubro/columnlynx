@@ -6,15 +6,23 @@
 
 namespace ColumnLynx::Utils {
     void log(const std::string &msg) {
-        std::cout << "[LOG] " << msg << std::endl;
+        std::cout << "\033[0m[LOG] " << msg << std::endl;
     }
 
     void warn(const std::string &msg) {
-        std::cerr << "[WARN] " << msg << std::endl;
+        std::cerr << "\033[33m[WARN] " << msg << "\033[0m" << std::endl;
     }
 
     void error(const std::string &msg) {
-        std::cerr << "[ERROR] " << msg << std::endl;
+        std::cerr << "\033[31m[ERROR] " << msg << "\033[0m" << std::endl;
+    }
+
+    void debug(const std::string &msg) {
+#if DEBUG || _DEBUG
+        std::cerr << "\033[95m[DEBUG] " << msg << "\033[0m" << std::endl;
+#else
+        return;
+#endif
     }
 
     std::string getHostname() {

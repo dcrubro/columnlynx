@@ -16,6 +16,10 @@ project(ColumnLynx
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+#set(CMAKE_CXX_FLAGS_DEBUG "-g")
+#add_compile_options(${CMAKE_CXX_FLAGS_DEBUG})
+
+add_compile_definitions(DEBUG=1) # TODO: Forcing for now, add dymanic based on compile flags later
 
 include(FetchContent)
 
@@ -67,9 +71,6 @@ else()
     message(FATAL_ERROR "OpenSSL not found")
 endif()
 
-# json
-#ind_package(nlohmann_json CONFIG REQUIRED)
-
 # ---------------------------------------------------------
 # Output directories
 # ---------------------------------------------------------
@@ -89,7 +90,7 @@ endforeach()
 # ---------------------------------------------------------
 file(GLOB_RECURSE COMMON_SRC CONFIGURE_DEPENDS src/common/*.cpp)
 add_library(common STATIC ${COMMON_SRC})
-target_link_libraries(common PUBLIC sodium OpenSSL::SSL OpenSSL::Crypto nlohmann_json::nlohmann_json)
+target_link_libraries(common PUBLIC sodium OpenSSL::SSL OpenSSL::Crypto)
 target_include_directories(common PUBLIC 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
@@ -102,7 +103,7 @@ target_compile_definitions(common PUBLIC ASIO_STANDALONE)
 # ---------------------------------------------------------
 file(GLOB_RECURSE CLIENT_SRC CONFIGURE_DEPENDS src/client/*.cpp)
 add_executable(client ${CLIENT_SRC})
-target_link_libraries(client PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto nlohmann_json::nlohmann_json)
+target_link_libraries(client PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto)
 target_include_directories(client PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
@@ -116,7 +117,7 @@ set_target_properties(client PROPERTIES OUTPUT_NAME "columnlynx_client")
 # ---------------------------------------------------------
 file(GLOB_RECURSE SERVER_SRC CONFIGURE_DEPENDS src/server/*.cpp)
 add_executable(server ${SERVER_SRC})
-target_link_libraries(server PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto nlohmann_json::nlohmann_json)
+target_link_libraries(server PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto)
 target_include_directories(server PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
