@@ -40,6 +40,16 @@ namespace ColumnLynx::Utils {
             uint8_t* getXPublicKey() { return mXPublicKey.data(); }
             uint8_t* getXPrivateKey() { return mXPrivateKey.data(); }
 
+            // Dangerous!
+            void setKeys(PublicKey pk, PrivateKey sk) {
+                mPublicKey = pk;
+                mPrivateKey = sk;
+
+                // Convert to Curve25519 keys for encryption
+                crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
+                crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
+            }
+
             // Helper section
 
             // Generates a random 256-bit (32-byte) array

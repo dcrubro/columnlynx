@@ -114,14 +114,23 @@ namespace ColumnLynx::Net::TCP {
 
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
-                std::memcpy(mConnectionPublicKey.data(), data.data() + 1, std::min(data.size() - 1, sizeof(mConnectionPublicKey))); // Store the client's public key (for identification)
+                PublicKey signPk;
+                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk))); // Store the client's public key (for identification)
+
+                crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data());
+                
+                Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
 
                 std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
 
-                if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mConnectionPublicKey.data(), mConnectionPublicKey.size())) == whitelistedKeys.end()) {
+                if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(signPk.data(), signPk.size())) == whitelistedKeys.end()) {
                     Utils::warn("Non-whitelisted client attempted to connect, terminating. Client IP: " + reqAddr);
                     disconnect();
+
+                    return;
                 }
+
+                Utils::debug("Client " + reqAddr + " passed authorized_keys");
 
                 mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(mLibSodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
                 break;

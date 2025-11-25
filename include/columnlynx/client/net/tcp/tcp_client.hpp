@@ -13,6 +13,7 @@
 #include <array>
 #include <algorithm>
 #include <vector>
+#include <unordered_map>
 #include <columnlynx/common/net/protocol_structs.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
@@ -42,7 +43,24 @@ namespace ColumnLynx::Net::TCP {
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
                 mLastHeartbeatSent(std::chrono::steady_clock::now()),
                 mTun(tun)
-            {}
+            {
+                // Preload the config map
+                mRawClientConfig = Utils::getConfigMap("client_config");
+
+                if (!mRawClientConfig.empty()) {
+                    Utils::debug("Loading the keys");
+
+                    PrivateKey sk;
+                    PublicKey pk;
+                    std::copy_n(Utils::hexStringToBytes(mRawClientConfig.find("CLIENT_PRIVATE_KEY")->second).begin(), sk.size(), sk.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
+                    std::copy_n(Utils::hexStringToBytes(mRawClientConfig.find("CLIENT_PUBLIC_KEY")->second).begin(), pk.size(), pk.begin());
+
+                    mLibSodiumWrapper->setKeys(pk, sk);
+
+                    Utils::debug("Newly-Loaded Public Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPublicKey(), 32));
+                    Utils::debug("Newly-Loaded Private Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPrivateKey(), 64));
+                }
+            }
 
             void start();
             void sendMessage(ClientMessageType type, const std::string& data = "");
@@ -76,5 +94,6 @@ namespace ColumnLynx::Net::TCP {
             bool mIsHostDomain;
             Protocol::TunConfig mTunConfig;
             std::shared_ptr<VirtualInterface> mTun = nullptr;
+            std::unordered_map<std::string, std::string> mRawClientConfig;
     };
 }

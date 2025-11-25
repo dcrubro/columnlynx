@@ -33,9 +33,13 @@ namespace ColumnLynx::Net::TCP {
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
                                 payload.push_back(Utils::protocolVersion());
-                                payload.insert(payload.end(),
+                                /*payload.insert(payload.end(),
                                     mLibSodiumWrapper->getXPublicKey(),
                                     mLibSodiumWrapper->getXPublicKey() + crypto_box_PUBLICKEYBYTES
+                                );*/
+                                payload.insert(payload.end(),
+                                    mLibSodiumWrapper->getPublicKey(),
+                                    mLibSodiumWrapper->getPublicKey() + crypto_sign_PUBLICKEYBYTES
                                 );
 
                                 mHandler->sendMessage(ClientMessageType::HANDSHAKE_INIT, Utils::uint8ArrayToString(payload.data(), payload.size()));

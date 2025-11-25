@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <fstream>
+#include <unordered_map>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -64,4 +65,7 @@ namespace ColumnLynx::Utils {
     inline constexpr uint64_t cbe64toh(uint64_t x) {
         return cbswap64(x);   // big-endian -> host (for little-endian hosts)
     }
+
+    // Returns the config file in an unordered_map format. This purely reads the config file, you still need to parse it manually.
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path);
 };

@@ -113,4 +113,34 @@ namespace ColumnLynx::Utils {
 
         return out;
     }
+
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path) {
+        // TODO: Currently re-reads every time.
+        std::vector<std::string> readLines;
+
+        std::ifstream file(path);
+        std::string line;
+
+        while (std::getline(file, line)) {
+            readLines.push_back(line);
+        }
+
+        // Parse them into the struct
+        std::unordered_map<std::string, std::string> config;
+        char delimiter = '=';
+
+        for (std::string str : readLines) {
+            std::stringstream ss(str);
+
+            std::string key;
+            std::string val;
+
+            std::getline(ss, key, delimiter);
+            std::getline(ss, val, delimiter);
+
+            config.insert({ key, val });
+        }
+
+        return config;
+    }
 }

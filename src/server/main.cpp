@@ -50,6 +50,9 @@ int main(int argc, char** argv) {
         auto result = options.parse(argc, argv);
         if (result.count("help")) {
             std::cout << options.help() << std::endl;
+            std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
+            std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
+            std::cout << "This software is provided under ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n";
             return 0;
         }
 

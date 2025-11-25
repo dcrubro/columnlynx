@@ -31,6 +31,9 @@ namespace ColumnLynx::Net::TCP {
                   mSodiumWrapper(sodiumWrapper),
                   mHostRunning(hostRunning)
             {
+                // Preload the config map
+                mRawServerConfig = Utils::getConfigMap("server_config");
+
                 asio::error_code ec;
             
                 if (!ipv4Only) {
@@ -68,6 +71,7 @@ namespace ColumnLynx::Net::TCP {
             std::unordered_set<TCPConnection::pointer> mClients;
             Utils::LibSodiumWrapper *mSodiumWrapper;
             bool* mHostRunning;
+            std::unordered_map<std::string, std::string> mRawServerConfig;
     };
 
 }
