@@ -41,7 +41,7 @@ namespace ColumnLynx::Net::UDP {
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 
         mSocket.send_to(asio::buffer(packet), mRemoteEndpoint);
-        Utils::log("Sent UDP packet of size " + std::to_string(packet.size()));
+        Utils::debug("Sent UDP packet of size " + std::to_string(packet.size()));
     }
 
     void UDPClient::stop() {
@@ -107,7 +107,7 @@ namespace ColumnLynx::Net::UDP {
             return;
         }
 
-        Utils::log("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
+        Utils::debug("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
 
         // Write to TUN
         if (mTunRef) {
