@@ -59,6 +59,7 @@ namespace ColumnLynx::Net::TCP {
 
                     Utils::debug("Newly-Loaded Public Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPublicKey(), 32));
                     Utils::debug("Newly-Loaded Private Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPrivateKey(), 64));
+                    Utils::debug("Public Encryption Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getXPublicKey(), 32));
                 }
             }
 

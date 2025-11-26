@@ -48,12 +48,16 @@ namespace ColumnLynx::Net::UDP {
 
         // Decrypt the actual payload
         try {
+            //Utils::debug("Using AES key " + Utils::bytesToHexString(session->aesKey.data(), 32));
+
             auto plaintext = Utils::LibSodiumWrapper::decryptMessage(
                 encryptedPayload.data(), encryptedPayload.size(),
                 session->aesKey,
-                hdr->nonce,
-                "udp-data"
+                hdr->nonce, "udp-data"
+                //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint64_t))
             );
+
+            Utils::debug("Passed decryption");
 
             const_cast<SessionState*>(session.get())->setUDPEndpoint(mRemoteEndpoint); // Update endpoint after confirming decryption
             // Update recv counter
@@ -66,8 +70,8 @@ namespace ColumnLynx::Net::UDP {
             if (mTun) {
                 mTun->writePacket(plaintext); // Send to virtual interface
             }
-        } catch (...) {
-            Utils::warn("UDP: Failed to decrypt payload from " + mRemoteEndpoint.address().to_string());
+        } catch (const std::exception &ex) {
+            Utils::warn("UDP: Failed to process payload from " + mRemoteEndpoint.address().to_string() + " Raw Error: '" + ex.what() + "'");
             return;
         }
     }
@@ -93,6 +97,7 @@ namespace ColumnLynx::Net::UDP {
         auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
             reinterpret_cast<const uint8_t*>(data.data()), data.size(),
             session->aesKey, hdr.nonce, "udp-data"
+            //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint64_t))
         );
 
         std::vector<uint8_t> packet;

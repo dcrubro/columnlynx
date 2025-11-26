@@ -22,9 +22,12 @@ namespace ColumnLynx::Net::UDP {
             return;
         }
 
+        //Utils::debug("Using AES key: " + Utils::bytesToHexString(mAesKeyRef->data(), 32));
+
         auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
             reinterpret_cast<const uint8_t*>(data.data()), data.size(),
             *mAesKeyRef, hdr.nonce, "udp-data"
+            //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
         std::vector<uint8_t> packet;
@@ -100,6 +103,7 @@ namespace ColumnLynx::Net::UDP {
 
         std::vector<uint8_t> plaintext = Utils::LibSodiumWrapper::decryptMessage(
             ciphertext.data(), ciphertext.size(), *mAesKeyRef, hdr.nonce, "udp-data"
+            //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
         if (plaintext.empty()) {

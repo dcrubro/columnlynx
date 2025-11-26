@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # If MAJOR is 0, and MINOR > 0, Version is BETA
 
 project(ColumnLynx
-    VERSION 0.0.4
+    VERSION 0.0.5
     LANGUAGES CXX
 )
 

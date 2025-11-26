@@ -6,20 +6,24 @@
 
 namespace ColumnLynx::Utils {
     void log(const std::string &msg) {
-        std::cout << "\033[0m[LOG] " << msg << std::endl;
+        uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        std::cout << "\033[0m[" << std::to_string(now) << " LOG] " << msg << std::endl;
     }
 
     void warn(const std::string &msg) {
-        std::cerr << "\033[33m[WARN] " << msg << "\033[0m" << std::endl;
+        uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        std::cerr << "\033[33m[" << std::to_string(now) << " WARN] " << msg << "\033[0m" << std::endl;
     }
 
     void error(const std::string &msg) {
-        std::cerr << "\033[31m[ERROR] " << msg << "\033[0m" << std::endl;
+        uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        std::cerr << "\033[31m[" << std::to_string(now) << " ERROR] " << msg << "\033[0m" << std::endl;
     }
 
     void debug(const std::string &msg) {
 #if DEBUG || _DEBUG
-        std::cerr << "\033[95m[DEBUG] " << msg << "\033[0m" << std::endl;
+        uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        std::cerr << "\033[95m[" << std::to_string(now) << " DEBUG] " << msg << "\033[0m" << std::endl;
 #else
         return;
 #endif
@@ -45,7 +49,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "a0.4";
+        return "a0.5";
     }
 
     unsigned short serverPort() {

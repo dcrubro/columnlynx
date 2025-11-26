@@ -130,7 +130,7 @@ namespace ColumnLynx::Utils {
             
                 std::vector<uint8_t> plaintext(len - crypto_aead_chacha20poly1305_ietf_ABYTES);
                 unsigned long long plen = 0;
-            
+
                 if (crypto_aead_chacha20poly1305_ietf_decrypt(
                         plaintext.data(), &plen,
                         nullptr,

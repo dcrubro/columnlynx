@@ -115,9 +115,11 @@ namespace ColumnLynx::Net::TCP {
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
                 PublicKey signPk;
-                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk))); // Store the client's public key (for identification)
+                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk)));
 
-                crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data());
+                // We can safely store this without further checking, the client will need to send the encrypted AES key in a way where they must possess the corresponding private key anyways.
+                crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
+                Utils::debug("Client " + reqAddr + " converted public encryption key: " + Utils::bytesToHexString(mConnectionPublicKey.data(), 32));
                 
                 Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
 
@@ -219,7 +221,7 @@ namespace ColumnLynx::Net::TCP {
                     mHandler->sendMessage(ServerMessageType::HANDSHAKE_EXCHANGE_KEY_CONFIRM, Utils::uint8ArrayToString(encryptedPayload.data(), encryptedPayload.size()));
 
                     // Add to session registry
-                    Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned.");
+                    Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
 
