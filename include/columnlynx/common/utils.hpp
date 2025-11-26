@@ -23,12 +23,18 @@
 #endif
 
 namespace ColumnLynx::Utils {
+    // General log function. Use for logging important information.
     void log(const std::string &msg);
+    // General warning function. Use for logging important warnings.
     void warn(const std::string &msg);
+    // General error function. Use for logging failures and general errors.
     void error(const std::string &msg);
+    // Debug log function. Use for logging non-important information. These will not print unless the binary is compiled with DEBUG=1
     void debug(const std::string &msg);
 
+    // Returns the hostname of the running platform.
     std::string getHostname();
+    // Returns the version of the running release.
     std::string getVersion();
     unsigned short serverPort();
     unsigned char protocolVersion();
@@ -36,6 +42,7 @@ namespace ColumnLynx::Utils {
 
     // Raw byte to hex string conversion helper
     std::string bytesToHexString(const uint8_t* bytes, size_t length);
+    // Hex string to raw byte conversion helper
     std::vector<uint8_t> hexStringToBytes(const std::string& hex);
 
     // uint8_t to raw string conversion helper
@@ -59,12 +66,14 @@ namespace ColumnLynx::Utils {
                ((x & 0xFF00000000000000ULL) >> 56);
     }
 
+    // host -> big-endian (for little-endian hosts) - 64 bit
     inline constexpr uint64_t chtobe64(uint64_t x) {
-        return cbswap64(x);   // host -> big-endian (for little-endian hosts)
+        return cbswap64(x);
     }
 
+    // big-endian -> host (for little-endian hosts) - 64 bit
     inline constexpr uint64_t cbe64toh(uint64_t x) {
-        return cbswap64(x);   // big-endian -> host (for little-endian hosts)
+        return cbswap64(x);
     }
 
     // Returns the config file in an unordered_map format. This purely reads the config file, you still need to parse it manually.

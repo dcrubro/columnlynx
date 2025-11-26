@@ -62,10 +62,13 @@ namespace ColumnLynx::Net::TCP {
                 mStartAccept();
             }
 
+            // Stop the TCP Server
             void stop();
 
         private:
+            // Start accepting clients via TCP
             void mStartAccept();
+            
             asio::io_context &mIoContext;
             asio::ip::tcp::acceptor mAcceptor;
             std::unordered_set<TCPConnection::pointer> mClients;

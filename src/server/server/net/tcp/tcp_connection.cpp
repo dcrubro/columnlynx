@@ -196,6 +196,13 @@ namespace ColumnLynx::Net::TCP {
                     Nonce symNonce{}; // All zeros
 
                     uint32_t clientIP = SessionRegistry::getInstance().getFirstAvailableIP();
+
+                    if (clientIP == 0) {
+                        Utils::warn("Out of available IPs! Disconnecting client " + reqAddr);
+                        disconnect();
+                        return;
+                    }
+
                     Protocol::TunConfig tunConfig{};
                     tunConfig.version = Utils::protocolVersion();
                     tunConfig.prefixLength = 24;

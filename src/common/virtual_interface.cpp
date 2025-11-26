@@ -4,6 +4,8 @@
 
 #include <columnlynx/common/net/virtual_interface.hpp>
 
+// This is all fucking voodoo dark magic.
+
 namespace ColumnLynx::Net {
     // ------------------------------ Constructor ------------------------------
     VirtualInterface::VirtualInterface(const std::string& ifName)

@@ -184,7 +184,7 @@ namespace ColumnLynx::Utils {
             out << "----------------------\n";
         }
 
-        //Panic the main thread and instantly halt execution. This produces a stack trace dump. Do not use by itself, throw an error instead.
+        // Panic the main thread and instantly halt execution. This produces a stack trace dump. Do not use by itself, throw an error instead.
         static void panic(const std::string& reason) {
             std::cerr << "\n***\033[31m MAIN THREAD PANIC! \033[0m***\n";
             std::cerr << "Reason: " << reason << "\n";
@@ -204,6 +204,7 @@ namespace ColumnLynx::Utils {
             std::cerr << "Panic trace written to panic_dump.txt\n";
         }
 
+        // Gets the current time
         static std::string currentTime() {
             std::time_t t = std::time(nullptr);
             char buf[64];

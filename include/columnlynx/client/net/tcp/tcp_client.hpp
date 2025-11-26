@@ -63,16 +63,25 @@ namespace ColumnLynx::Net::TCP {
                 }
             }
 
+            // Starts the TCP Client and initiaties the handshake
             void start();
+            // Sends a TCP message to the server
             void sendMessage(ClientMessageType type, const std::string& data = "");
+            // Attempt to gracefully disconnect from the server
             void disconnect(bool echo = true);
 
+            // Get the handshake status
             bool isHandshakeComplete() const;
+            // Get the connection status
             bool isConnected() const;
 
         private:
+            // Start the heartbeat routine
             void mStartHeartbeat();
+            // Handle an incoming TCP message
             void mHandleMessage(ServerMessageType type, const std::string& data);
+
+            // TODO: Move ptrs to smart ptrs
 
             bool mConnected = false;
             bool mHandshakeComplete = false;

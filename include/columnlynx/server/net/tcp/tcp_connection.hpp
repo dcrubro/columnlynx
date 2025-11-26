@@ -33,12 +33,18 @@ namespace ColumnLynx::Net::TCP {
                 return conn;
             }
 
+            // Start a TCP Connection (Handler for an incoming connection)
             void start();
+            // Send a message to the TCP client
             void sendMessage(ServerMessageType type, const std::string& data = "");
+            // Set callback for disconnects
             void setDisconnectCallback(std::function<void(std::shared_ptr<TCPConnection>)> cb);
+            // Disconnect the client
             void disconnect();
 
+            // Get the assigned session ID
             uint64_t getSessionID() const;
+            // Get the assigned AES key; You should probably access this via the Session Registry instead
             std::array<uint8_t, 32> getAESKey() const;
         
         private:
@@ -51,7 +57,9 @@ namespace ColumnLynx::Net::TCP {
                 mLastHeartbeatSent(std::chrono::steady_clock::now())
             {}
 
+            // Start the heartbeat routine
             void mStartHeartbeat();
+            // Handle an incoming TCP message
             void mHandleMessage(ClientMessageType type, const std::string& data);
 
             std::shared_ptr<MessageHandler> mHandler;
