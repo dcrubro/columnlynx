@@ -84,7 +84,7 @@ namespace ColumnLynx::Net::TCP {
             }
 
             self->sendMessage(ServerMessageType::HEARTBEAT);
-            Utils::log("Sent HEARTBEAT to client " + std::to_string(self->mConnectionSessionID));
+            Utils::debug("Sent HEARTBEAT to client " + std::to_string(self->mConnectionSessionID));
             self->mLastHeartbeatSent = now;
 
             self->mStartHeartbeat(); // Recursive
@@ -247,12 +247,12 @@ namespace ColumnLynx::Net::TCP {
                 break;
             }
             case ClientMessageType::HEARTBEAT: {
-                Utils::log("Received HEARTBEAT from " + reqAddr);
+                Utils::debug("Received HEARTBEAT from " + reqAddr);
                 mHandler->sendMessage(ServerMessageType::HEARTBEAT_ACK, ""); // Send ACK
                 break;
             }
             case ClientMessageType::HEARTBEAT_ACK: {
-                Utils::log("Received HEARTBEAT_ACK from " + reqAddr);
+                Utils::debug("Received HEARTBEAT_ACK from " + reqAddr);
                 mLastHeartbeatReceived = std::chrono::steady_clock::now();
                 mMissedHeartbeats = 0; // Reset missed heartbeat count
                 break;
