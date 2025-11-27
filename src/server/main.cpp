@@ -43,9 +43,9 @@ int main(int argc, char** argv) {
         ("h,help", "Print help")
         ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"))
 #if defined(__APPLE__)
-        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"))
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"));
 #else
-        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"));
 #endif
 
     PanicHandler::init();
