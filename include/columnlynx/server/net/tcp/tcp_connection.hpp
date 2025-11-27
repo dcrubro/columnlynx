@@ -10,7 +10,7 @@
 #include <ctime>
 #include <cstdint>
 #include <new>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_handler.hpp>
 #include <columnlynx/common/utils.hpp>

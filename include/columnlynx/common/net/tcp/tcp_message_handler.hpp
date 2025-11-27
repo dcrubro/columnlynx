@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 

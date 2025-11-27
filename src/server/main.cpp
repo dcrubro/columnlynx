@@ -2,7 +2,7 @@
 // Copyright (C) 2025 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <iostream>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
@@ -10,7 +10,7 @@
 #include <columnlynx/server/net/udp/udp_server.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <unordered_set>
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;

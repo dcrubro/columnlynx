@@ -11,7 +11,7 @@
 #include <memory>
 #include <unordered_set>
 #include <new>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/server/net/tcp/tcp_connection.hpp>

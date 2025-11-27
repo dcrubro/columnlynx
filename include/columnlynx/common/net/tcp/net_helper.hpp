@@ -3,7 +3,7 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #pragma once
-#include <asio/asio.hpp>
+#include <asio.hpp>
 
 namespace ColumnLynx::Net::TCP {
     class NetHelper {

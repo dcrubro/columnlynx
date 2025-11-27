@@ -54,6 +54,20 @@ FetchContent_Declare(
 set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
 set(SODIUM_STATIC ON CACHE BOOL "" FORCE)
 
+# Fetch asio
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG asio-1-36-0
+)
+
+# Fetch cxxopts
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.3.1
+)
+
 # Forward architecture and build type to subproject
 set(SODIUM_CMAKE_ARGS
     -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
@@ -61,6 +75,8 @@ set(SODIUM_CMAKE_ARGS
 )
 
 FetchContent_MakeAvailable(Sodium)
+FetchContent_MakeAvailable(asio)
+FetchContent_MakeAvailable(cxxopts)
 
 # OpenSSL
 find_package(OpenSSL REQUIRED)
@@ -90,11 +106,12 @@ endforeach()
 # ---------------------------------------------------------
 file(GLOB_RECURSE COMMON_SRC CONFIGURE_DEPENDS src/common/*.cpp)
 add_library(common STATIC ${COMMON_SRC})
-target_link_libraries(common PUBLIC sodium OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(common PUBLIC sodium OpenSSL::SSL OpenSSL::Crypto cxxopts::cxxopts)
 target_include_directories(common PUBLIC 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
     ${sodium_BINARY_DIR}/src/libsodium/include
+    ${asio_SOURCE_DIR}/asio/include
 )
 target_compile_definitions(common PUBLIC ASIO_STANDALONE)
 
@@ -103,11 +120,12 @@ target_compile_definitions(common PUBLIC ASIO_STANDALONE)
 # ---------------------------------------------------------
 file(GLOB_RECURSE CLIENT_SRC CONFIGURE_DEPENDS src/client/*.cpp)
 add_executable(client ${CLIENT_SRC})
-target_link_libraries(client PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(client PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto cxxopts::cxxopts)
 target_include_directories(client PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
     ${sodium_BINARY_DIR}/src/libsodium/include
+    ${asio_SOURCE_DIR}/asio/include
 )
 target_compile_definitions(client PRIVATE ASIO_STANDALONE)
 set_target_properties(client PROPERTIES OUTPUT_NAME "columnlynx_client")
@@ -117,11 +135,12 @@ set_target_properties(client PROPERTIES OUTPUT_NAME "columnlynx_client")
 # ---------------------------------------------------------
 file(GLOB_RECURSE SERVER_SRC CONFIGURE_DEPENDS src/server/*.cpp)
 add_executable(server ${SERVER_SRC})
-target_link_libraries(server PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(server PRIVATE common sodium OpenSSL::SSL OpenSSL::Crypto cxxopts::cxxopts)
 target_include_directories(server PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
     ${sodium_BINARY_DIR}/src/libsodium/include
+    ${asio_SOURCE_DIR}/asio/include
 )
 target_compile_definitions(server PRIVATE ASIO_STANDALONE)
 set_target_properties(server PROPERTIES OUTPUT_NAME "columnlynx_server")

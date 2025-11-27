@@ -10,7 +10,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/net/tcp/net_helper.hpp>
 #include <columnlynx/common/utils.hpp>

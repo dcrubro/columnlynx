@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/udp/udp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
