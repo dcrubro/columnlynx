@@ -16,9 +16,14 @@ namespace ColumnLynx::Utils {
             throw std::runtime_error("Failed to generate key pair");
         }
 
+        int r;
         // Convert to Curve25519 keys for encryption
-        crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
-        crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
+        r = crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
+        r =  crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
+
+        if (r != 0) {
+            throw std::runtime_error("Conversion of signing keys to encryption keys failed!");
+        }
 
         log("Libsodium initialized and keypair generated");
     }

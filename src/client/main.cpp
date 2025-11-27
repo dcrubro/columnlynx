@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun1");
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("lynx0");
         log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

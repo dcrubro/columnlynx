@@ -133,7 +133,7 @@ namespace ColumnLynx::Utils {
         std::unordered_map<std::string, std::string> config;
         char delimiter = '=';
 
-        for (std::string str : readLines) {
+        for (std::string &str : readLines) {
             std::stringstream ss(str);
 
             std::string key;

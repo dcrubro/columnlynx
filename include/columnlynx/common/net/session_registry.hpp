@@ -122,9 +122,9 @@ namespace ColumnLynx::Net {
                     if (mSessionIPs.find(candidateIP) == mSessionIPs.end()) {
                         return candidateIP;
                     }
-
-                    return 0; // Unavailable
                 }
+
+                return 0; // Unavailable
             }
 
             // Lock an IP as assigned to a specific session

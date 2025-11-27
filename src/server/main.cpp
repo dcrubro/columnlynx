@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("lynx0");
         log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)

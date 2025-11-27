@@ -196,7 +196,12 @@ namespace ColumnLynx::Net::TCP {
                         
                         // Convert the server's public key to Curve25519 for encryption
                         AsymPublicKey serverXPubKey{};
-                        crypto_sign_ed25519_pk_to_curve25519(serverXPubKey.data(), mServerPublicKey);
+                        int r = crypto_sign_ed25519_pk_to_curve25519(serverXPubKey.data(), mServerPublicKey);
+                        if (r != 0) {
+                            Utils::error("Failed to convert server signing key to encryption key! Killing connection.");
+                            disconnect();
+                            return;
+                        }
 
                         // Generate AES key and send confirmation
                         mConnectionAESKey = Utils::LibSodiumWrapper::generateRandom256Bit();

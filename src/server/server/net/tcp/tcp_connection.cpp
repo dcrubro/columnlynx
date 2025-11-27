@@ -118,7 +118,14 @@ namespace ColumnLynx::Net::TCP {
                 std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk)));
 
                 // We can safely store this without further checking, the client will need to send the encrypted AES key in a way where they must possess the corresponding private key anyways.
-                crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
+                int r = crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
+                if (r != 0) {
+                    Utils::error("Conversion of client signing key to encryption key failed! Killing connection from " + reqAddr);
+                    disconnect();
+
+                    return;
+                }
+
                 Utils::debug("Client " + reqAddr + " converted public encryption key: " + Utils::bytesToHexString(mConnectionPublicKey.data(), 32));
                 
                 Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
