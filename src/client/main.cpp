@@ -42,6 +42,11 @@ int main(int argc, char** argv) {
         ("h,help", "Print help")
         ("s,server", "Server address", cxxopts::value<std::string>()->default_value("127.0.0.1"))
         ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())))
+#if defined(__APPLE__)
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"))
+#else
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
+#endif
         ("allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
 
     bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
@@ -66,11 +71,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-#if defined(__APPLE__)
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
-#else
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("lynx0");
-#endif
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(result["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

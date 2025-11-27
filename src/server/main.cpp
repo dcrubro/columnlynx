@@ -42,6 +42,11 @@ int main(int argc, char** argv) {
     options.add_options()
         ("h,help", "Print help")
         ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"))
+#if defined(__APPLE__)
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"))
+#else
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
+#endif
         ("c,config", "Specify config file location", cxxopts::value<std::string>()->default_value("config.json"));
 
     PanicHandler::init();
@@ -66,11 +71,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-#if defined(__APPLE__)
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
-#else
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("lynx0");
-#endif
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(result["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
