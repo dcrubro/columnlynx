@@ -47,7 +47,6 @@ int main(int argc, char** argv) {
 #else
         ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
 #endif
-        ("c,config", "Specify config file location", cxxopts::value<std::string>()->default_value("config.json"));
 
     PanicHandler::init();
 
@@ -62,7 +61,6 @@ int main(int argc, char** argv) {
         }
 
         bool ipv4Only = result["ipv4-only"].as<bool>();
-        std::string configPath = result["config"].as<std::string>();
 
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
