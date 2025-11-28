@@ -2,14 +2,14 @@
 // Copyright (C) 2025 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <csignal>
 #include <iostream>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
 #include <columnlynx/client/net/udp/udp_client.hpp>
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
 using asio::ip::tcp;
@@ -42,18 +42,26 @@ int main(int argc, char** argv) {
         ("h,help", "Print help")
         ("s,server", "Server address", cxxopts::value<std::string>()->default_value("127.0.0.1"))
         ("p,port", "Server port", cxxopts::value<uint16_t>()->default_value(std::to_string(serverPort())))
+#if defined(__APPLE__)
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"))
+#else
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
+#endif
         ("allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
 
     bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
     
-    auto result = options.parse(argc, argv);
-    if (result.count("help")) {
+    auto optionsObj = options.parse(argc, argv);
+    if (optionsObj.count("help")) {
         std::cout << options.help() << std::endl;
+        std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
+        std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
+        std::cout << "This software is provided under ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n";
         return 0;
     }
 
-    auto host = result["server"].as<std::string>();
-    auto port = std::to_string(result["port"].as<uint16_t>());
+    auto host = optionsObj["server"].as<std::string>();
+    auto port = std::to_string(optionsObj["port"].as<uint16_t>());
 
     try {
         log("ColumnLynx Client, Version " + getVersion());
@@ -63,10 +71,12 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>("utun0");
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
+        debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper.getPublicKey(), 32));
+        debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper.getPrivateKey(), 64));
 
         std::array<uint8_t, 32> aesKey = {0}; // Defualt zeroed state until modified by handshake
         uint64_t sessionID = 0;

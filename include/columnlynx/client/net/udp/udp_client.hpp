@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/udp/udp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
@@ -25,12 +25,17 @@ namespace ColumnLynx::Net::UDP {
                 mStartReceive(); 
             }
 
+            // Start the UDP client
             void start();
+            // Send a UDP message
             void sendMessage(const std::string& data = "");
+            // Stop the UDP client
             void stop();
 
         private:
+            // Start the UDP listener routine
             void mStartReceive();
+            // Handle an incoming UDP message
             void mHandlePacket(std::size_t bytes);
 
             asio::ip::udp::socket mSocket;

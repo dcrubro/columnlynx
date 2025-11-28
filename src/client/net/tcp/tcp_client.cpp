@@ -28,14 +28,18 @@ namespace ColumnLynx::Net::TCP {
                                 // Check if hostname or IPv4/IPv6
                                 sockaddr_in addr4{};
                                 sockaddr_in6 addr6{};
-                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1;
+                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1; // Voodoo black magic
 
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
                                 payload.push_back(Utils::protocolVersion());
-                                payload.insert(payload.end(),
+                                /*payload.insert(payload.end(),
                                     mLibSodiumWrapper->getXPublicKey(),
                                     mLibSodiumWrapper->getXPublicKey() + crypto_box_PUBLICKEYBYTES
+                                );*/
+                                payload.insert(payload.end(),
+                                    mLibSodiumWrapper->getPublicKey(),
+                                    mLibSodiumWrapper->getPublicKey() + crypto_sign_PUBLICKEYBYTES
                                 );
 
                                 mHandler->sendMessage(ClientMessageType::HANDSHAKE_INIT, Utils::uint8ArrayToString(payload.data(), payload.size()));
@@ -125,7 +129,7 @@ namespace ColumnLynx::Net::TCP {
             }
 
             self->sendMessage(ClientMessageType::HEARTBEAT);
-            Utils::log("Sent HEARTBEAT to server.");
+            Utils::debug("Sent HEARTBEAT to server.");
             self->mLastHeartbeatSent = std::chrono::steady_clock::now();
             
             self->mStartHeartbeat(); // Recursive
@@ -138,40 +142,16 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Received server identity: " + data);
                     std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
 
-                    // Convert key (uint8_t raw array) to vector
-                    std::vector<uint8_t> serverPublicKeyVec(std::begin(mServerPublicKey), std::end(mServerPublicKey));
-
-                    // Verify server public key
-                    if (!Utils::LibSodiumWrapper::verifyCertificateWithSystemCAs(serverPublicKeyVec)) {
+                    // Verify pubkey against whitelisted_keys
+                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+                    if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mServerPublicKey, 32)) == whitelistedKeys.end()) { // Key verification is handled in later steps of the handshake
                         if (!(*mInsecureMode)) {
-                            Utils::error("Server public key verification failed. Terminating connection.");
+                            Utils::error("Server public key not in whitelisted_keys. Terminating connection.");
                             disconnect();
                             return;
                         }
 
-                        Utils::warn("Warning: Server public key verification failed, but continuing due to insecure mode.");
-                    }
-
-                    // Extract and verify hostname from certificate if not IP
-                    if (mIsHostDomain) {
-                        std::vector<std::string> certHostnames = Utils::LibSodiumWrapper::getCertificateHostname(serverPublicKeyVec);
-
-                        // Temp: print extracted hostnames if any
-                        for (const auto& hostname : certHostnames) {
-                            Utils::log("Extracted hostname from certificate: " + hostname);
-                        }
-
-                        if (certHostnames.empty() || std::find(certHostnames.begin(), certHostnames.end(), mHost) == certHostnames.end()) {
-                            if (!(*mInsecureMode)) {
-                                Utils::error("Server hostname verification failed. Terminating connection.");
-                                disconnect();
-                                return;
-                            }
-
-                            Utils::warn("Warning: Server hostname verification failed, but continuing due to insecure mode.");
-                        }
-                    } else {
-                        Utils::warn("Connecting via IP address, I can't verify the server's identity! You might be getting MITM'd!");
+                        Utils::warn("Server public key not in whitelisted_keys, but continuing due to insecure mode.");
                     }
 
                     // Generate and send challenge
@@ -192,7 +172,12 @@ namespace ColumnLynx::Net::TCP {
                         
                         // Convert the server's public key to Curve25519 for encryption
                         AsymPublicKey serverXPubKey{};
-                        crypto_sign_ed25519_pk_to_curve25519(serverXPubKey.data(), mServerPublicKey);
+                        int r = crypto_sign_ed25519_pk_to_curve25519(serverXPubKey.data(), mServerPublicKey);
+                        if (r != 0) {
+                            Utils::error("Failed to convert server signing key to encryption key! Killing connection.");
+                            disconnect();
+                            return;
+                        }
 
                         // Generate AES key and send confirmation
                         mConnectionAESKey = Utils::LibSodiumWrapper::generateRandom256Bit();
@@ -247,6 +232,9 @@ namespace ColumnLynx::Net::TCP {
 
                     std::memcpy(&mConnectionSessionID, decrypted.data(), sizeof(mConnectionSessionID));
                     std::memcpy(&mTunConfig, decrypted.data() + sizeof(mConnectionSessionID), sizeof(Protocol::TunConfig));
+
+                    mConnectionSessionID = Utils::cbe64toh(mConnectionSessionID);
+
                     Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
                 
                     if (mSessionIDRef) { // Copy to the global reference
@@ -267,11 +255,11 @@ namespace ColumnLynx::Net::TCP {
             
                 break;
             case ServerMessageType::HEARTBEAT:
-                Utils::log("Received HEARTBEAT from server.");
+                Utils::debug("Received HEARTBEAT from server.");
                 mHandler->sendMessage(ClientMessageType::HEARTBEAT_ACK, ""); // Send ACK
                 break;
             case ServerMessageType::HEARTBEAT_ACK:
-                Utils::log("Received HEARTBEAT_ACK from server.");
+                Utils::debug("Received HEARTBEAT_ACK from server.");
                 mLastHeartbeatReceived = std::chrono::steady_clock::now();
                 mMissedHeartbeats = 0; // Reset missed heartbeat count
                 break;

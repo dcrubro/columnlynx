@@ -14,16 +14,16 @@
 
 namespace ColumnLynx::Net {
     struct SessionState {
-        SymmetricKey aesKey; // Immutable after creation
+        SymmetricKey aesKey; // Agreed-upon AES-256 kes for that session; Immutable after creation
         std::atomic<uint64_t> send_ctr{0}; // Per-direction counters
-        std::atomic<uint64_t> recv_ctr{0};
-        asio::ip::udp::endpoint udpEndpoint;
-        std::atomic<uint64_t> sendCounter{0};
-        std::chrono::steady_clock::time_point created = std::chrono::steady_clock::now();
-        std::chrono::steady_clock::time_point expires{};
-        uint32_t clientTunIP;
-        uint32_t serverTunIP;
-        uint64_t sessionID;
+        std::atomic<uint64_t> recv_ctr{0}; // Per-direction counters
+        asio::ip::udp::endpoint udpEndpoint; // Deducted IP + Port of that session client
+        std::atomic<uint64_t> sendCounter{0}; // Counter of sent messages
+        std::chrono::steady_clock::time_point created = std::chrono::steady_clock::now(); // Time created
+        std::chrono::steady_clock::time_point expires{}; // Time of expiry
+        uint32_t clientTunIP; // Assigned IP
+        uint32_t serverTunIP; // Server IP
+        uint64_t sessionID; // Session ID
         Nonce base_nonce{};
 
         ~SessionState() { sodium_memzero(aesKey.data(), aesKey.size()); }
@@ -36,6 +36,7 @@ namespace ColumnLynx::Net {
             expires = created + ttl;
         }
 
+        // Set the UDP endpoint
         void setUDPEndpoint(const asio::ip::udp::endpoint& ep) {
             udpEndpoint = ep;
         }
@@ -43,28 +44,31 @@ namespace ColumnLynx::Net {
 
     class SessionRegistry {
         public:
+            // Return a reference to the Session Registry instance
             static SessionRegistry& getInstance() { static SessionRegistry instance; return instance; }
 
-            // Insert or replace
+            // Insert or replace a session entry
             void put(uint64_t sessionID, std::shared_ptr<SessionState> state) {
                 std::unique_lock lock(mMutex);
                 mSessions[sessionID] = std::move(state);
                 mIPSessions[mSessions[sessionID]->clientTunIP] = mSessions[sessionID];
             }
 
-            // Lookup
+            // Lookup a session entry by session ID
             std::shared_ptr<const SessionState> get(uint64_t sessionID) const {
                 std::shared_lock lock(mMutex);
                 auto it = mSessions.find(sessionID);
                 return (it == mSessions.end()) ? nullptr : it->second;
             }
 
+            // Lookup a session entry by IPv4
             std::shared_ptr<const SessionState> getByIP(uint32_t ip) const {
                 std::shared_lock lock(mMutex);
                 auto it = mIPSessions.find(ip);
                 return (it == mIPSessions.end()) ? nullptr : it->second;
             }
 
+            // Get a snapshot of the Session Registry
             std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snapshot() const {
                 std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snap;
                 std::shared_lock lock(mMutex);
@@ -72,7 +76,7 @@ namespace ColumnLynx::Net {
                 return snap;
             }
 
-            // Remove
+            // Remove a session by ID
             void erase(uint64_t sessionID) {
                 std::unique_lock lock(mMutex);
                 mSessions.erase(sessionID);
@@ -99,6 +103,7 @@ namespace ColumnLynx::Net {
                 }
             }
 
+            // Get the number of registered sessions
             int size() const {
                 std::shared_lock lock(mMutex);
                 return static_cast<int>(mSessions.size());
@@ -106,6 +111,7 @@ namespace ColumnLynx::Net {
 
             // IP management (simple for /24 subnet)
 
+            // Get the lowest available IPv4 address; Returns 0 if none available
             uint32_t getFirstAvailableIP() const {
                 std::shared_lock lock(mMutex);
                 uint32_t baseIP = 0x0A0A0002; // 10.10.0.2
@@ -115,15 +121,19 @@ namespace ColumnLynx::Net {
                     uint32_t candidateIP = baseIP + offset;
                     if (mSessionIPs.find(candidateIP) == mSessionIPs.end()) {
                         return candidateIP;
-                    }                    
+                    }
                 }
+
+                return 0; // Unavailable
             }
 
+            // Lock an IP as assigned to a specific session
             void lockIP(uint64_t sessionID, uint32_t ip) {
                 std::unique_lock lock(mMutex);
                 mSessionIPs[sessionID] = ip;
             }
 
+            // Unlock the IP associated with a given session
             void deallocIP(uint64_t sessionID) {
                 std::unique_lock lock(mMutex);
                 mSessionIPs.erase(sessionID);

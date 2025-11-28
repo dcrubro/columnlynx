@@ -11,7 +11,7 @@
 #include <memory>
 #include <unordered_set>
 #include <new>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/server/net/tcp/tcp_connection.hpp>
@@ -31,6 +31,9 @@ namespace ColumnLynx::Net::TCP {
                   mSodiumWrapper(sodiumWrapper),
                   mHostRunning(hostRunning)
             {
+                // Preload the config map
+                mRawServerConfig = Utils::getConfigMap("server_config");
+
                 asio::error_code ec;
             
                 if (!ipv4Only) {
@@ -59,15 +62,19 @@ namespace ColumnLynx::Net::TCP {
                 mStartAccept();
             }
 
+            // Stop the TCP Server
             void stop();
 
         private:
+            // Start accepting clients via TCP
             void mStartAccept();
+            
             asio::io_context &mIoContext;
             asio::ip::tcp::acceptor mAcceptor;
             std::unordered_set<TCPConnection::pointer> mClients;
             Utils::LibSodiumWrapper *mSodiumWrapper;
             bool* mHostRunning;
+            std::unordered_map<std::string, std::string> mRawServerConfig;
     };
 
 }
