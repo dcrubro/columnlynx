@@ -22,9 +22,12 @@ namespace ColumnLynx::Net::UDP {
             return;
         }
 
+        //Utils::debug("Using AES key: " + Utils::bytesToHexString(mAesKeyRef->data(), 32));
+
         auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
             reinterpret_cast<const uint8_t*>(data.data()), data.size(),
             *mAesKeyRef, hdr.nonce, "udp-data"
+            //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
         std::vector<uint8_t> packet;
@@ -41,7 +44,7 @@ namespace ColumnLynx::Net::UDP {
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 
         mSocket.send_to(asio::buffer(packet), mRemoteEndpoint);
-        Utils::log("Sent UDP packet of size " + std::to_string(packet.size()));
+        Utils::debug("Sent UDP packet of size " + std::to_string(packet.size()));
     }
 
     void UDPClient::stop() {
@@ -100,6 +103,7 @@ namespace ColumnLynx::Net::UDP {
 
         std::vector<uint8_t> plaintext = Utils::LibSodiumWrapper::decryptMessage(
             ciphertext.data(), ciphertext.size(), *mAesKeyRef, hdr.nonce, "udp-data"
+            //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
         if (plaintext.empty()) {
@@ -107,7 +111,7 @@ namespace ColumnLynx::Net::UDP {
             return;
         }
 
-        Utils::log("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
+        Utils::debug("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
 
         // Write to TUN
         if (mTunRef) {

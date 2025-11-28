@@ -9,6 +9,7 @@
 #include <array>
 
 namespace ColumnLynx::Net::UDP {
+    // @deprecated
     // Shared between server and client
     enum class MessageType : uint8_t {
         PING = 0x01,

@@ -2,8 +2,6 @@
 // Copyright (C) 2025 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
-#pragma once
-
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
 
 #include <cstdint>
@@ -12,7 +10,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/tcp/tcp_message_type.hpp>
 #include <columnlynx/common/net/tcp/net_helper.hpp>
 #include <columnlynx/common/utils.hpp>
@@ -63,7 +61,7 @@ namespace ColumnLynx::Net::TCP {
 
         // Snapshot to avoid iterator invalidation while callbacks erase()
         std::vector<std::shared_ptr<TCPConnection>> snapshot(mClients.begin(), mClients.end());
-        for (auto& client : snapshot) {
+        for (auto &client : snapshot) {
             try {
                 client->disconnect(); // should shutdown+close the socket
                 Utils::log("GRACEFUL_DISCONNECT sent to session: " + std::to_string(client->getSessionID()));

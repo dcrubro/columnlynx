@@ -84,7 +84,7 @@ namespace ColumnLynx::Net::TCP {
             }
 
             self->sendMessage(ServerMessageType::HEARTBEAT);
-            Utils::log("Sent HEARTBEAT to client " + std::to_string(self->mConnectionSessionID));
+            Utils::debug("Sent HEARTBEAT to client " + std::to_string(self->mConnectionSessionID));
             self->mLastHeartbeatSent = now;
 
             self->mStartHeartbeat(); // Recursive
@@ -114,7 +114,33 @@ namespace ColumnLynx::Net::TCP {
 
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
-                std::memcpy(mConnectionPublicKey.data(), data.data() + 1, std::min(data.size() - 1, sizeof(mConnectionPublicKey))); // Store the client's public key (for identification)
+                PublicKey signPk;
+                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk)));
+
+                // We can safely store this without further checking, the client will need to send the encrypted AES key in a way where they must possess the corresponding private key anyways.
+                int r = crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
+                if (r != 0) {
+                    Utils::error("Conversion of client signing key to encryption key failed! Killing connection from " + reqAddr);
+                    disconnect();
+
+                    return;
+                }
+
+                Utils::debug("Client " + reqAddr + " converted public encryption key: " + Utils::bytesToHexString(mConnectionPublicKey.data(), 32));
+                
+                Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
+
+                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+
+                if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(signPk.data(), signPk.size())) == whitelistedKeys.end()) {
+                    Utils::warn("Non-whitelisted client attempted to connect, terminating. Client IP: " + reqAddr);
+                    disconnect();
+
+                    return;
+                }
+
+                Utils::debug("Client " + reqAddr + " passed authorized_keys");
+
                 mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(mLibSodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
                 break;
             }
@@ -173,12 +199,17 @@ namespace ColumnLynx::Net::TCP {
                     // Make a Session ID
                     randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
 
-                    // TODO: Make the session ID little-endian for network transmission
-
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
                     uint32_t clientIP = SessionRegistry::getInstance().getFirstAvailableIP();
+
+                    if (clientIP == 0) {
+                        Utils::warn("Out of available IPs! Disconnecting client " + reqAddr);
+                        disconnect();
+                        return;
+                    }
+
                     Protocol::TunConfig tunConfig{};
                     tunConfig.version = Utils::protocolVersion();
                     tunConfig.prefixLength = 24;
@@ -190,8 +221,10 @@ namespace ColumnLynx::Net::TCP {
 
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
+                    uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
+
                     std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
-                    std::memcpy(payload.data(), &mConnectionSessionID, sizeof(uint64_t));
+                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint64_t));
                     std::memcpy(payload.data() + sizeof(uint64_t), &tunConfig, sizeof(tunConfig));
 
                     std::vector<uint8_t> encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
@@ -202,7 +235,7 @@ namespace ColumnLynx::Net::TCP {
                     mHandler->sendMessage(ServerMessageType::HANDSHAKE_EXCHANGE_KEY_CONFIRM, Utils::uint8ArrayToString(encryptedPayload.data(), encryptedPayload.size()));
 
                     // Add to session registry
-                    Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned.");
+                    Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
 
@@ -214,12 +247,12 @@ namespace ColumnLynx::Net::TCP {
                 break;
             }
             case ClientMessageType::HEARTBEAT: {
-                Utils::log("Received HEARTBEAT from " + reqAddr);
+                Utils::debug("Received HEARTBEAT from " + reqAddr);
                 mHandler->sendMessage(ServerMessageType::HEARTBEAT_ACK, ""); // Send ACK
                 break;
             }
             case ClientMessageType::HEARTBEAT_ACK: {
-                Utils::log("Received HEARTBEAT_ACK from " + reqAddr);
+                Utils::debug("Received HEARTBEAT_ACK from " + reqAddr);
                 mLastHeartbeatReceived = std::chrono::steady_clock::now();
                 mMissedHeartbeats = 0; // Reset missed heartbeat count
                 break;

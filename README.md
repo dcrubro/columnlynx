@@ -16,6 +16,60 @@ This project aims to be just that, an encrypted tunneling protocol that works on
 
 This simplicity-focused design approach allows us to make an efficient, low-overhead VPN protocol and minimize any potential attack surface.
 
+## Configuration
+
+Configurating the server and client are are relatively easy. Currently (since the project is in alpha), the configuration files **must be in the same directory as the working directory**.
+
+### Server
+ 
+"**server_config**" is a file that contains the server configuration, **one variable per line**. These are the current configuration available variables:
+
+- **SERVER_PUBLIC_KEY** (Hex String): The public key to be used
+- **SERVER_PRIVATE_KEY** (Hex String): The private key to be used
+
+**Example:**
+
+```
+SERVER_PUBLIC_KEY=787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+SERVER_PRIVATE_KEY=778604245F57B847E63BD85DE8208FF1A127FB559895195928C3987E246B77B8787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+```
+
+<hr></hr>
+
+"**whitelisted_keys**" is a file that **public keys of clients that are allowed to connect to the server, one key per line**.
+
+**Example:**
+
+```
+8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
+338592767CE50DB84674494704E1363C6E43948F722D70DD812F455FCA295792
+```
+
+### Client
+ 
+"**client_config**" is a file that contains the client configuration, **one variable per line**. These are the current configuration available variables:
+
+- **CLIENT_PUBLIC_KEY** (Hex String): The public key to be used
+- **CLIENT_PRIVATE_KEY** (Hex String): The private key to be used
+
+**Example:**
+
+```
+CLIENT_PUBLIC_KEY=8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
+CLIENT_PRIVATE_KEY=9B486A5B1509FA216F9EEFED85CACF2384E9D902A76CC979BFA143C18B869F5C8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
+```
+
+<hr></hr>
+
+"**whitelisted_keys**" is a file that **public keys of servers that are allowed to communicate with your client, one key per line**.
+
+**Example:**
+
+```
+787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
+```
+
 ## How does it work
 
 ColumnLynx makes use of both **TCP** and **UDP**. **TCP** is used for the initial handshake and commands, which **UDP** is used for actual packet transmission.

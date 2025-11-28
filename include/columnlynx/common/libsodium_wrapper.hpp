@@ -35,25 +35,38 @@ namespace ColumnLynx::Utils {
         public:
             LibSodiumWrapper();
 
+            // These are pretty self-explanatory
+
             uint8_t* getPublicKey();
             uint8_t* getPrivateKey();
             uint8_t* getXPublicKey() { return mXPublicKey.data(); }
             uint8_t* getXPrivateKey() { return mXPrivateKey.data(); }
 
+            // Set the Asymmetric signing keypair. This also regenerates the corresponding encryption keypair; Dangerous!
+            void setKeys(PublicKey pk, PrivateKey sk) {
+                mPublicKey = pk;
+                mPrivateKey = sk;
+
+                int r;
+                // Convert to Curve25519 keys for encryption
+                r = crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
+                r =  crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
+
+                if (r != 0) {
+                    throw std::runtime_error("Conversion of signing keys to encryption keys failed!");
+                }
+            }
+
             // Helper section
 
             // Generates a random 256-bit (32-byte) array
             static std::array<uint8_t, 32> generateRandom256Bit();
-            
+
+            // Sign a message with the stored private key
             static inline Signature signMessage(const uint8_t* msg, size_t len, const PrivateKey& sk) {
                 Signature sig{};
                 crypto_sign_detached(sig.data(), nullptr, msg, len, sk.data());
                 return sig;
-            }
-
-            static inline bool verifyMessage(const uint8_t* msg, size_t len,
-                                      const Signature& sig, const PublicKey& pk) {
-                return crypto_sign_verify_detached(sig.data(), msg, len, pk.data()) == 0;
             }
 
             // Overloads for std::string / std::array
@@ -72,6 +85,11 @@ namespace ColumnLynx::Utils {
                 return sig;
             }
 
+            // Verify a message with a given public key
+            static inline bool verifyMessage(const uint8_t* msg, size_t len, const Signature& sig, const PublicKey& pk) {
+                    return crypto_sign_verify_detached(sig.data(), msg, len, pk.data()) == 0;
+            }
+
             static inline bool verifyMessage(const std::string& msg, const Signature& sig, const PublicKey& pk) {
                 return verifyMessage(reinterpret_cast<const uint8_t*>(msg.data()), msg.size(), sig, pk);
             }
@@ -86,7 +104,7 @@ namespace ColumnLynx::Utils {
                 return crypto_sign_verify_detached(sig.data(), msg, len, pk_raw) == 0;
             }
 
-            // Encrypt with ChaCha20-Poly1305 (returns ciphertext as bytes)
+            // Encrypt symmetrically with ChaCha20-Poly1305; returns ciphertext as bytes
             static inline std::vector<uint8_t> encryptMessage(
                 const uint8_t* plaintext, size_t len,
                 const SymmetricKey& key, const Nonce& nonce,
@@ -109,7 +127,7 @@ namespace ColumnLynx::Utils {
                 return ciphertext;
             }
 
-            // Decrypt with ChaCha20-Poly1305 (returns plaintext as bytes)
+            // Decrypt symmetrically with ChaCha20-Poly1305; Returns plaintext as bytes
             static inline std::vector<uint8_t> decryptMessage(
                 const uint8_t* ciphertext, size_t len,
                 const SymmetricKey& key, const Nonce& nonce,
@@ -120,7 +138,7 @@ namespace ColumnLynx::Utils {
             
                 std::vector<uint8_t> plaintext(len - crypto_aead_chacha20poly1305_ietf_ABYTES);
                 unsigned long long plen = 0;
-            
+
                 if (crypto_aead_chacha20poly1305_ietf_decrypt(
                         plaintext.data(), &plen,
                         nullptr,
@@ -135,12 +153,14 @@ namespace ColumnLynx::Utils {
                 return plaintext;
             }
 
+            // Returns a random nonce
             static inline Nonce generateNonce() {
                 Nonce n{};
                 randombytes_buf(n.data(), n.size());
                 return n;
             }
 
+            // Encrypt message asymmetrically; Returns ciphertext as bytes
             static inline std::vector<uint8_t> encryptAsymmetric(
                 const uint8_t* plaintext, size_t len,
                 const AsymNonce& nonce,
@@ -161,6 +181,7 @@ namespace ColumnLynx::Utils {
                 return ciphertext;
             }
 
+            // Decrypt message asymmetrically; Returns plaintext as bytes
             static inline std::vector<uint8_t> decryptAsymmetric(
                 const uint8_t* ciphertext, size_t len,
                 const AsymNonce& nonce,
@@ -183,98 +204,6 @@ namespace ColumnLynx::Utils {
             
                 return plaintext;
             }
-
-        static inline bool verifyCertificateWithSystemCAs(const std::vector<uint8_t>& cert_der) {
-            // Parse DER-encoded certificate
-            const unsigned char* p = cert_der.data();
-            std::unique_ptr<X509, decltype(&X509_free)> cert(
-                d2i_X509(nullptr, &p, cert_der.size()), X509_free
-            );
-            if (!cert) {
-                return false;
-            }
-        
-            // Create a certificate store
-            std::unique_ptr<X509_STORE, decltype(&X509_STORE_free)> store(
-                X509_STORE_new(), X509_STORE_free
-            );
-            if (!store) {
-                return false;
-            }
-        
-            // Load system default CA paths (/etc/ssl/certs, etc.)
-            if (X509_STORE_set_default_paths(store.get()) != 1) {
-                return false;
-            }
-        
-            // Create a verification context
-            std::unique_ptr<X509_STORE_CTX, decltype(&X509_STORE_CTX_free)> ctx(
-                X509_STORE_CTX_new(), X509_STORE_CTX_free
-            );
-            if (!ctx) {
-                return false;
-            }
-        
-            // Initialize verification context
-            if (X509_STORE_CTX_init(ctx.get(), store.get(), cert.get(), nullptr) != 1) {
-                return false;
-            }
-        
-            // Perform the actual certificate verification
-            int result = X509_verify_cert(ctx.get());
-            return result == 1;
-        }
-
-        static inline std::vector<std::string> getCertificateHostname(const std::vector<uint8_t>& cert_der) {
-            std::vector<std::string> names;
-
-            if (cert_der.empty())
-                return names;
-
-            // Parse DER certificate
-            const unsigned char* p = cert_der.data();
-            X509* cert = d2i_X509(nullptr, &p, cert_der.size());
-            if (!cert)
-                return names;
-
-            // --- Subject Alternative Names (SAN) ---
-            GENERAL_NAMES* san_names =
-                (GENERAL_NAMES*)X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr);
-
-            if (san_names) {
-                int san_count = sk_GENERAL_NAME_num(san_names);
-                for (int i = 0; i < san_count; i++) {
-                    const GENERAL_NAME* current = sk_GENERAL_NAME_value(san_names, i);
-                    if (current->type == GEN_DNS) {
-                        const char* dns_name = (const char*)ASN1_STRING_get0_data(current->d.dNSName);
-                        // Safety: ensure no embedded nulls
-                        if (ASN1_STRING_length(current->d.dNSName) == (int)std::strlen(dns_name)) {
-                            names.emplace_back(dns_name);
-                        }
-                    }
-                }
-                GENERAL_NAMES_free(san_names);
-            }
-        
-            // --- Fallback: Common Name (CN) ---
-            if (names.empty()) {
-                X509_NAME* subject = X509_get_subject_name(cert);
-                if (subject) {
-                    int idx = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
-                    if (idx >= 0) {
-                        X509_NAME_ENTRY* entry = X509_NAME_get_entry(subject, idx);
-                        ASN1_STRING* cn_asn1 = X509_NAME_ENTRY_get_data(entry);
-                        const char* cn_str = (const char*)ASN1_STRING_get0_data(cn_asn1);
-                        if (ASN1_STRING_length(cn_asn1) == (int)std::strlen(cn_str)) {
-                            names.emplace_back(cn_str);
-                        }
-                    }
-                }
-            }
-        
-            X509_free(cert);
-            return names;
-        }
 
         private:
             std::array<uint8_t, crypto_sign_PUBLICKEYBYTES> mPublicKey;

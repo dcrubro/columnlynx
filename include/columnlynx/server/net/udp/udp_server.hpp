@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <asio/asio.hpp>
+#include <asio.hpp>
 #include <columnlynx/common/net/udp/udp_message_type.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <array>
@@ -42,13 +42,18 @@ namespace ColumnLynx::Net::UDP {
                 mStartReceive();
             }
 
+            // Stop the UDP server
             void stop();
 
+            // Send UDP data to an endpoint; Fetched via the Session Registry
             void sendData(const uint64_t sessionID, const std::string& data);
 
         private:
+            // Start receiving UDP data
             void mStartReceive();
+            // Handle an incoming UDP packet
             void mHandlePacket(std::size_t bytes);
+
             asio::ip::udp::socket mSocket;
             asio::ip::udp::endpoint mRemoteEndpoint;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed

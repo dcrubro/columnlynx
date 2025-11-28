@@ -4,6 +4,8 @@
 
 #include <columnlynx/common/net/virtual_interface.hpp>
 
+// This is all fucking voodoo dark magic.
+
 namespace ColumnLynx::Net {
     // ------------------------------ Constructor ------------------------------
     VirtualInterface::VirtualInterface(const std::string& ifName)
@@ -40,7 +42,7 @@ namespace ColumnLynx::Net {
         sc.sc_family = AF_SYSTEM;
         sc.ss_sysaddr = AF_SYS_CONTROL;
         sc.sc_id = ctlInfo.ctl_id;
-        sc.sc_unit = 0; // utun0 (0 = auto-assign)
+        sc.sc_unit = 0; // lynx0 (0 = auto-assign)
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
             if (errno == EPERM)
@@ -186,11 +188,12 @@ namespace ColumnLynx::Net {
     
         std::string ipStr = ipv4ToString(clientIP);
         std::string peerStr = ipv4ToString(serverIP);
+        std::string prefixStr = ipv4ToString(prefixLen);
     
         // Set netmask (/24 CIDR temporarily with raw command, improve later)
         snprintf(cmd, sizeof(cmd),
-                "ifconfig utun0 %s %s mtu %d netmask 255.255.255.0 up",
-                 ipStr.c_str(), peerStr.c_str(), mtu);
+                "ifconfig lynx0 %s %s mtu %d netmask %s up",
+                 ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
         system(cmd);
 
         Utils::log("Executed command: " + std::string(cmd));
@@ -201,22 +204,36 @@ namespace ColumnLynx::Net {
     // ------------------------------------------------------------
     // Windows (Wintun)
     // ------------------------------------------------------------
-    bool VirtualInterface::mApplyWindowsIP(uint32_t clientIP, uint32_t serverIP,
-                                          uint8_t prefixLen, uint16_t mtu)
+    bool VirtualInterface::mApplyWindowsIP(uint32_t clientIP,
+                                       uint32_t serverIP,
+                                       uint8_t prefixLen,
+                                       uint16_t mtu)
     {
     #ifdef _WIN32
-        char ip[32], gw[32];
-        strcpy(ip, ipv4ToString(clientIP).c_str());
-        strcpy(gw, ipv4ToString(serverIP).c_str());
-    
+        std::string ip  = ipv4ToString(clientIP);
+        std::string gw  = ipv4ToString(serverIP);
+        std::string mask;
+
+        // Convert prefixLen → subnet mask
+        uint32_t maskInt = (prefixLen == 0) ? 0 : (0xFFFFFFFF << (32 - prefixLen));
+        mask = ipv4ToString(maskInt);
+
         char cmd[256];
+
+        // 1. Set the static IP + mask + gateway
         snprintf(cmd, sizeof(cmd),
-                 "netsh interface ip set address name=\"%s\" static %s %d.%d.%d.%d",
-                 mIfName.c_str(), ip,
-                 (prefixLen <= 8) ? ((prefixLen << 3) & 255) : 255,
-                 255, 255, 255);
+            "netsh interface ip set address name=\"%s\" static %s %s %s",
+            mIfName.c_str(), ip.c_str(), mask.c_str(), gw.c_str()
+        );
         system(cmd);
-    
+
+        // 2. Set MTU (separate command)
+        snprintf(cmd, sizeof(cmd),
+            "netsh interface ipv4 set subinterface \"%s\" mtu=%u store=persistent",
+            mIfName.c_str(), mtu
+        );
+        system(cmd);
+
         return true;
     #else
         return false;
