@@ -47,19 +47,23 @@ namespace ColumnLynx::Net::TCP {
                 // Preload the config map
                 mRawClientConfig = Utils::getConfigMap("client_config");
 
-                if (!mRawClientConfig.empty()) {
-                    Utils::debug("Loading the keys");
+                auto itPubkey = mRawClientConfig.find("CLIENT_PUBLIC_KEY");
+                auto itPrivkey = mRawClientConfig.find("CLIENT_PRIVATE_KEY");
 
-                    PrivateKey sk;
+                if (itPubkey != mRawClientConfig.end() && itPrivkey != mRawClientConfig.end()) {
+                    Utils::log("Loading keypair from config file.");
+                
                     PublicKey pk;
-                    std::copy_n(Utils::hexStringToBytes(mRawClientConfig.find("CLIENT_PRIVATE_KEY")->second).begin(), sk.size(), sk.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
-                    std::copy_n(Utils::hexStringToBytes(mRawClientConfig.find("CLIENT_PUBLIC_KEY")->second).begin(), pk.size(), pk.begin());
-
+                    PrivateKey sk;
+                
+                    std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), sk.size(), sk.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
+                    std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
+                
                     mLibSodiumWrapper->setKeys(pk, sk);
 
                     Utils::debug("Newly-Loaded Public Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPublicKey(), 32));
-                    Utils::debug("Newly-Loaded Private Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPrivateKey(), 64));
-                    Utils::debug("Public Encryption Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getXPublicKey(), 32));
+                } else {
+                    Utils::warn("No keypair found in config file! Using random key.");
                 }
             }
 

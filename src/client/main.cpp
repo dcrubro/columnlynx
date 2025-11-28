@@ -51,8 +51,8 @@ int main(int argc, char** argv) {
 
     bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
     
-    auto result = options.parse(argc, argv);
-    if (result.count("help")) {
+    auto optionsObj = options.parse(argc, argv);
+    if (optionsObj.count("help")) {
         std::cout << options.help() << std::endl;
         std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
         std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    auto host = result["server"].as<std::string>();
-    auto port = std::to_string(result["port"].as<uint16_t>());
+    auto host = optionsObj["server"].as<std::string>();
+    auto port = std::to_string(optionsObj["port"].as<uint16_t>());
 
     try {
         log("ColumnLynx Client, Version " + getVersion());
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(result["interface"].as<std::string>());
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();

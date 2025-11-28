@@ -142,40 +142,16 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Received server identity: " + data);
                     std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
 
-                    // Convert key (uint8_t raw array) to vector
-                    std::vector<uint8_t> serverPublicKeyVec(std::begin(mServerPublicKey), std::end(mServerPublicKey));
-
-                    // Verify server public key
-                    if (!Utils::LibSodiumWrapper::verifyCertificateWithSystemCAs(serverPublicKeyVec)) {
+                    // Verify pubkey against whitelisted_keys
+                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+                    if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mServerPublicKey, 32)) == whitelistedKeys.end()) { // Key verification is handled in later steps of the handshake
                         if (!(*mInsecureMode)) {
-                            Utils::error("Server public key verification failed. Terminating connection.");
+                            Utils::error("Server public key not in whitelisted_keys. Terminating connection.");
                             disconnect();
                             return;
                         }
 
-                        Utils::warn("Warning: Server public key verification failed, but continuing due to insecure mode.");
-                    }
-
-                    // Extract and verify hostname from certificate if not IP
-                    if (mIsHostDomain) {
-                        std::vector<std::string> certHostnames = Utils::LibSodiumWrapper::getCertificateHostname(serverPublicKeyVec);
-
-                        // Temp: print extracted hostnames if any
-                        for (const auto& hostname : certHostnames) {
-                            Utils::log("Extracted hostname from certificate: " + hostname);
-                        }
-
-                        if (certHostnames.empty() || std::find(certHostnames.begin(), certHostnames.end(), mHost) == certHostnames.end()) {
-                            if (!(*mInsecureMode)) {
-                                Utils::error("Server hostname verification failed. Terminating connection.");
-                                disconnect();
-                                return;
-                            }
-
-                            Utils::warn("Warning: Server hostname verification failed, but continuing due to insecure mode.");
-                        }
-                    } else {
-                        Utils::warn("Connecting via IP address, I can't verify the server's identity! You might be getting MITM'd!");
+                        Utils::warn("Server public key not in whitelisted_keys, but continuing due to insecure mode.");
                     }
 
                     // Generate and send challenge

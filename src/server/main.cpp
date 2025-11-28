@@ -10,6 +10,7 @@
 #include <columnlynx/server/net/udp/udp_server.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <unordered_set>
+#include <unordered_map>
 #include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
@@ -43,16 +44,17 @@ int main(int argc, char** argv) {
         ("h,help", "Print help")
         ("4,ipv4-only", "Force IPv4 only operation", cxxopts::value<bool>()->default_value("false"))
 #if defined(__APPLE__)
-        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"));
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("utun0"))
 #else
-        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"));
+        ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
 #endif
+        ("config", "Override config file path", cxxopts::value<std::string>()->default_value("./server_config"));
 
     PanicHandler::init();
 
     try {
-        auto result = options.parse(argc, argv);
-        if (result.count("help")) {
+        auto optionsObj = options.parse(argc, argv);
+        if (optionsObj.count("help")) {
             std::cout << options.help() << std::endl;
             std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
             std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
@@ -60,7 +62,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        bool ipv4Only = result["ipv4-only"].as<bool>();
+        bool ipv4Only = optionsObj["ipv4-only"].as<bool>();
 
         log("ColumnLynx Server, Version " + getVersion());
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
@@ -69,11 +71,31 @@ int main(int argc, char** argv) {
         WintunInitialize();
 #endif
 
-        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(result["interface"].as<std::string>());
+        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
+
+        std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
+
+        auto itPubkey = config.find("SERVER_PUBLIC_KEY");
+        auto itPrivkey = config.find("SERVER_PRIVATE_KEY");
+
+        if (itPubkey != config.end() && itPrivkey != config.end()) {
+            log("Loading keypair from config file.");
+
+            PublicKey pk;
+            PrivateKey sk;
+
+            std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), sk.size(), sk.begin());
+            std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
+
+            sodiumWrapper.setKeys(pk, sk);
+        } else {
+            warn("No keypair found in config file! Using random key.");
+        }
+
         log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
         //log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
 
