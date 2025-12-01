@@ -38,7 +38,7 @@ endif()
 if(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic -O3)
     add_link_options(-pthread)
 endif()
 

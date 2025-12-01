@@ -25,7 +25,7 @@ namespace ColumnLynx::Net::TCP {
 
             static pointer create(
                 asio::ip::tcp::socket socket,
-                Utils::LibSodiumWrapper* sodiumWrapper,
+                std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
                 std::function<void(pointer)> onDisconnect)
             {
                 auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper));
@@ -48,7 +48,7 @@ namespace ColumnLynx::Net::TCP {
             std::array<uint8_t, 32> getAESKey() const;
         
         private:
-            TCPConnection(asio::ip::tcp::socket socket, Utils::LibSodiumWrapper* sodiumWrapper)
+            TCPConnection(asio::ip::tcp::socket socket, std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper)
                 :
                 mHandler(std::make_shared<MessageHandler>(std::move(socket))),
                 mLibSodiumWrapper(sodiumWrapper),
@@ -64,7 +64,7 @@ namespace ColumnLynx::Net::TCP {
 
             std::shared_ptr<MessageHandler> mHandler;
             std::function<void(std::shared_ptr<TCPConnection>)> mOnDisconnect;
-            Utils::LibSodiumWrapper *mLibSodiumWrapper;
+            std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper;
             std::array<uint8_t, 32> mConnectionAESKey;
             uint64_t mConnectionSessionID;
             AsymPublicKey mConnectionPublicKey;

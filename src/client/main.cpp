@@ -74,16 +74,17 @@ int main(int argc, char** argv) {
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
-        LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
-        debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper.getPublicKey(), 32));
-        debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper.getPrivateKey(), 64));
+        std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
+        debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper->getPublicKey(), 32));
+        debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper->getPrivateKey(), 64));
 
-        std::array<uint8_t, 32> aesKey = {0}; // Defualt zeroed state until modified by handshake
-        uint64_t sessionID = 0;
+        std::shared_ptr<std::array<uint8_t, 32>> aesKey = std::make_shared<std::array<uint8_t, 32>>(); 
+        aesKey->fill(0); // Defualt zeroed state until modified by handshake
+        std::shared_ptr<uint64_t> sessionID = std::make_shared<uint64_t>(0);
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, &sodiumWrapper, &aesKey, &sessionID, &insecureMode, tun);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, &aesKey, &sessionID, tun);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, tun);
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, aesKey, sessionID, tun);
 
         client->start();
         udpClient->start();

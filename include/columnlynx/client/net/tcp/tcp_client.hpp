@@ -25,10 +25,10 @@ namespace ColumnLynx::Net::TCP {
             TCPClient(asio::io_context& ioContext,
                       const std::string& host,
                       const std::string& port,
-                      Utils::LibSodiumWrapper* sodiumWrapper,
-                      std::array<uint8_t, 32>* aesKey,
-                      uint64_t* sessionIDRef,
-                      bool* insecureMode,
+                      std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
+                      std::shared_ptr<std::array<uint8_t, 32>> aesKey,
+                      std::shared_ptr<uint64_t> sessionIDRef,
+                      bool insecureMode,
                       std::shared_ptr<VirtualInterface> tun = nullptr)
                 :
                 mResolver(ioContext),
@@ -95,12 +95,12 @@ namespace ColumnLynx::Net::TCP {
             std::string mHost, mPort;
             uint8_t mServerPublicKey[32]; // Assuming 256-bit public key
             std::array<uint8_t, 32> mSubmittedChallenge{};
-            Utils::LibSodiumWrapper* mLibSodiumWrapper;
+            std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper;
             uint64_t mConnectionSessionID;
             SymmetricKey mConnectionAESKey;
-            std::array<uint8_t, 32>* mGlobalKeyRef; // Reference to global AES key
-            uint64_t* mSessionIDRef; // Reference to global Session ID
-            bool* mInsecureMode; // Reference to insecure mode flag
+            std::shared_ptr<std::array<uint8_t, 32>> mGlobalKeyRef; // Reference to global AES key
+            std::shared_ptr<uint64_t> mSessionIDRef; // Reference to global Session ID
+            bool mInsecureMode; // Insecure mode flag
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;

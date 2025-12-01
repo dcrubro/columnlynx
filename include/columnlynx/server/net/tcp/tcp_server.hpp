@@ -24,8 +24,8 @@ namespace ColumnLynx::Net::TCP {
         public:
             TCPServer(asio::io_context& ioContext,
                       uint16_t port,
-                      Utils::LibSodiumWrapper* sodiumWrapper,
-                      bool* hostRunning, bool ipv4Only = false)
+                      std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
+                      std::shared_ptr<bool> hostRunning, bool ipv4Only = false)
                 : mIoContext(ioContext),
                   mAcceptor(ioContext),
                   mSodiumWrapper(sodiumWrapper),
@@ -72,8 +72,8 @@ namespace ColumnLynx::Net::TCP {
             asio::io_context &mIoContext;
             asio::ip::tcp::acceptor mAcceptor;
             std::unordered_set<TCPConnection::pointer> mClients;
-            Utils::LibSodiumWrapper *mSodiumWrapper;
-            bool* mHostRunning;
+            std::shared_ptr<Utils::LibSodiumWrapper> mSodiumWrapper;
+            std::shared_ptr<bool> mHostRunning;
             std::unordered_map<std::string, std::string> mRawServerConfig;
     };
 

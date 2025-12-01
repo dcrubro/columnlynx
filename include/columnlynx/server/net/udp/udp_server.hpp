@@ -13,7 +13,7 @@
 namespace ColumnLynx::Net::UDP {
     class UDPServer {
         public:
-            UDPServer(asio::io_context& ioContext, uint16_t port, bool* hostRunning, bool ipv4Only = false, std::shared_ptr<VirtualInterface> tun = nullptr)
+            UDPServer(asio::io_context& ioContext, uint16_t port, std::shared_ptr<bool> hostRunning, bool ipv4Only = false, std::shared_ptr<VirtualInterface> tun = nullptr)
                 : mSocket(ioContext), mHostRunning(hostRunning), mTun(tun)
             {
                 asio::error_code ec;
@@ -56,8 +56,8 @@ namespace ColumnLynx::Net::UDP {
 
             asio::ip::udp::socket mSocket;
             asio::ip::udp::endpoint mRemoteEndpoint;
-            std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
-            bool* mHostRunning;
+            std::array<uint8_t, 2048> mRecvBuffer; // 2048 seems stable
+            std::shared_ptr<bool> mHostRunning;
             std::shared_ptr<VirtualInterface> mTun;
     };
 }
