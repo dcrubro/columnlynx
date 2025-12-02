@@ -19,7 +19,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #add_compile_options(${CMAKE_CXX_FLAGS_DEBUG})
 
-add_compile_definitions(DEBUG=1) # TODO: Forcing for now, add dymanic based on compile flags later
+if(DEBUG)
+    add_compile_definitions(DEBUG=1) # TODO: Forcing for now, add dymanic based on compile flags later
+endif()
 
 include(FetchContent)
 
