@@ -229,8 +229,6 @@ namespace ColumnLynx::Net::TCP {
                     tunConfig.clientIP = htonl(clientIP); // e.g. 10.10.0.X
                     tunConfig.dns1 = htonl(0x08080808);    // 8.8.8.8
                     tunConfig.dns2 = 0;
-                    
-                    SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
                     uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
 
@@ -249,6 +247,7 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
+                    SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
                 } catch (const std::exception& e) {
                     Utils::error("Failed to decrypt HANDSHAKE_EXCHANGE_KEY from " + reqAddr + ": " + e.what());

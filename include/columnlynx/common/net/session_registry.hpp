@@ -134,9 +134,9 @@ namespace ColumnLynx::Net {
                 std::unique_lock lock(mMutex);
                 mSessionIPs[sessionID] = ip;
                 
-                if (mIPSessions.find(sessionID) == mIPSessions.end()) {
+                /*if (mIPSessions.find(sessionID) == mIPSessions.end()) {
                     Utils::debug("yikes");
-                }
+                }*/
                 mIPSessions[ip] = mSessions.find(sessionID)->second;
             }
 
