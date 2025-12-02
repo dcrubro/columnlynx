@@ -76,6 +76,8 @@ ColumnLynx makes use of both **TCP** and **UDP**. **TCP** is used for the initia
 
 It operates on port **48042** for both TCP and UDP.
 
+Generally, all transmission is done in **little-endian byte order**, since pretty much every single modern architecture uses it by default. The only exemption to this is the **transmission of IP addresses** (for the **Virtual Interface**), which is **big-endian**.
+
 ### Handshake Procedure
 
 The handshake between the client and server is done over **TCP**. This is to ensure delivery without much hassle.
