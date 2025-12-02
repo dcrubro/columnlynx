@@ -26,12 +26,16 @@ Configurating the server and client are are relatively easy. Currently (since th
 
 - **SERVER_PUBLIC_KEY** (Hex String): The public key to be used
 - **SERVER_PRIVATE_KEY** (Hex String): The private key to be used
+- **NETWORK** (IPv4 Format): The network IPv4 to be used (Server Interface still needs to be configured manually)
+- **SUBNET_MASK** (Integer): The subnet mask to be used (ensure proper length, it will not be checked)
 
 **Example:**
 
 ```
 SERVER_PUBLIC_KEY=787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
 SERVER_PRIVATE_KEY=778604245F57B847E63BD85DE8208FF1A127FB559895195928C3987E246B77B8787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+NETWORK=10.10.0.0
+SUBNET_MASK=24
 ```
 
 <hr></hr>

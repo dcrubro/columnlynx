@@ -118,7 +118,7 @@ namespace ColumnLynx::Utils {
         return out;
     }
 
-    std::unordered_map<std::string, std::string> getConfigMap(std::string path) {
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path, std::vector<std::string> requiredKeys) {
         // TODO: Currently re-reads every time.
         std::vector<std::string> readLines;
 
@@ -127,6 +127,16 @@ namespace ColumnLynx::Utils {
 
         while (std::getline(file, line)) {
             readLines.push_back(line);
+        }
+
+        if (!requiredKeys.empty()) {
+            // Check if they exist using unordered_set magic
+            std::unordered_set<std::string> setA(readLines.begin(), readLines.end());
+            for (std::string x : requiredKeys) {
+                if (!setA.count(x)) {
+                    throw std::runtime_error("Config doesn't contain all required keys! (Missing: '" + x + "')");
+                }
+            }
         }
 
         // Parse them into the struct

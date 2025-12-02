@@ -13,6 +13,7 @@
 #include <fstream>
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
 #include <algorithm>
 
 #ifdef _WIN32
@@ -94,5 +95,5 @@ namespace ColumnLynx::Utils {
     }
 
     // Returns the config file in an unordered_map format. This purely reads the config file, you still need to parse it manually.
-    std::unordered_map<std::string, std::string> getConfigMap(std::string path);
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path, std::vector<std::string> requiredKeys = {});
 };

@@ -32,7 +32,7 @@ namespace ColumnLynx::Net::TCP {
                   mHostRunning(hostRunning)
             {
                 // Preload the config map
-                mRawServerConfig = Utils::getConfigMap("server_config");
+                mRawServerConfig = Utils::getConfigMap("server_config", {"NETWORK", "SUBNET_MASK"});
 
                 asio::error_code ec;
             

@@ -60,6 +60,16 @@ namespace ColumnLynx::Net {
                 return std::string(buf);
             }
 
+            static inline uint32_t stringToIpv4(const std::string &ipStr) {
+                struct in_addr addr;
+                
+                if (inet_pton(AF_INET, ipStr.c_str(), &addr) != 1) {
+                    return 0; // "0.0.0.0"
+                }
+            
+                return ntohl(addr.s_addr);
+            }
+
             static inline uint32_t prefixLengthToNetmask(uint8_t prefixLen) {
                 if (prefixLen == 0) return 0;
                 uint32_t mask = (0xFFFFFFFF << (32 - prefixLen)) & 0xFFFFFFFF;

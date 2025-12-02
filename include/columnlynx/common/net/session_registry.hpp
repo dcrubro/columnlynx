@@ -8,6 +8,7 @@
 #include <memory>
 #include <chrono>
 #include <array>
+#include <cmath>
 #include <sodium.h>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
@@ -109,22 +110,23 @@ namespace ColumnLynx::Net {
                 return static_cast<int>(mSessions.size());
             }
 
-            // IP management (simple for /24 subnet)
+            // IP management
 
             // Get the lowest available IPv4 address; Returns 0 if none available
-            uint32_t getFirstAvailableIP() const {
+            uint32_t getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
                 std::shared_lock lock(mMutex);
-                uint32_t baseIP = 0x0A0A0002; // 10.10.0.2
+                
+                uint32_t hostSpace = (1u << (32 - mask)) - 2; // Usable hosts
 
-                // TODO: Expand to support larger subnets
-                for (uint32_t offset = 0; offset < 254; offset++) {
+                // Skip 0 (network) and 1 (server reserved), start at 2
+                for (uint32_t offset = 2; offset <= hostSpace; offset++) {
                     uint32_t candidateIP = baseIP + offset;
                     if (mSessionIPs.find(candidateIP) == mSessionIPs.end()) {
                         return candidateIP;
                     }
                 }
-
-                return 0; // Unavailable
+            
+                return 0; // No available IPs
             }
 
             // Lock an IP as assigned to a specific session
