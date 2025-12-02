@@ -166,6 +166,13 @@ namespace ColumnLynx::Net {
         std::string ipStr = ipv4ToString(clientIP);
         std::string peerStr = ipv4ToString(serverIP);
     
+        // Wipe the current config
+        snprintf(cmd, sizeof(cmd),
+                 "ip addr flush dev %s",
+                 mIfName.c_str()
+        );
+        system(cmd);
+
         snprintf(cmd, sizeof(cmd),
                  "ip addr add %s/%d peer %s dev %s",
                  ipStr.c_str(), prefixLen, peerStr.c_str(), mIfName.c_str());
@@ -190,10 +197,23 @@ namespace ColumnLynx::Net {
         std::string peerStr = ipv4ToString(serverIP);
         std::string prefixStr = ipv4ToString(prefixLen);
     
-        // Set netmask (/24 CIDR temporarily with raw command, improve later)
+        // Reset
         snprintf(cmd, sizeof(cmd),
-                "ifconfig lynx0 %s %s mtu %d netmask %s up",
-                 ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
+                 "ifconfig %s inet 0.0.0.0 delete",
+                mIfName.c_str()
+        );
+        system(cmd);
+
+        snprintf(cmd, sizeof(cmd),
+                 "ifconfig %s inet6 :: delete",
+                mIfName.c_str()
+        );
+        system(cmd);
+
+        // Set
+        snprintf(cmd, sizeof(cmd),
+                "ifconfig %s %s %s mtu %d netmask %s up",
+                 mIfName.c_str(), ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
         system(cmd);
 
         Utils::log("Executed command: " + std::string(cmd));

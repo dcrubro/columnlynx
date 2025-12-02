@@ -145,7 +145,7 @@ namespace ColumnLynx::Net::TCP {
                     // Verify pubkey against whitelisted_keys
                     std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
                     if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mServerPublicKey, 32)) == whitelistedKeys.end()) { // Key verification is handled in later steps of the handshake
-                        if (!(*mInsecureMode)) {
+                        if (!mInsecureMode) {
                             Utils::error("Server public key not in whitelisted_keys. Terminating connection.");
                             disconnect();
                             return;

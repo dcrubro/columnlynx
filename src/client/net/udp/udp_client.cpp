@@ -36,10 +36,9 @@ namespace ColumnLynx::Net::UDP {
             reinterpret_cast<uint8_t*>(&hdr),
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
         );
-        uint64_t sid = *mSessionIDRef;
         packet.insert(packet.end(),
-            reinterpret_cast<uint8_t*>(&sid),
-            reinterpret_cast<uint8_t*>(&sid) + sizeof(sid)
+            reinterpret_cast<uint8_t*>(mSessionIDRef.get()),
+            reinterpret_cast<uint8_t*>(mSessionIDRef.get()) + sizeof(uint64_t)
         );
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 
@@ -89,6 +88,11 @@ namespace ColumnLynx::Net::UDP {
         // Parse session ID
         uint64_t sessionID;
         std::memcpy(&sessionID, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint64_t));
+
+        if (sessionID != *mSessionIDRef) {
+            Utils::warn("Got packet that isn't for me! Dropping!");
+            return;
+        }
 
         // Decrypt payload
         std::vector<uint8_t> ciphertext(

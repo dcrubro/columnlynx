@@ -17,6 +17,7 @@
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <columnlynx/common/net/session_registry.hpp>
 #include <columnlynx/common/net/protocol_structs.hpp>
+#include <columnlynx/common/net/virtual_interface.hpp>
 
 namespace ColumnLynx::Net::TCP {
     class TCPConnection : public std::enable_shared_from_this<TCPConnection> {
@@ -25,10 +26,11 @@ namespace ColumnLynx::Net::TCP {
 
             static pointer create(
                 asio::ip::tcp::socket socket,
-                Utils::LibSodiumWrapper* sodiumWrapper,
+                std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
+                std::unordered_map<std::string, std::string>* serverConfig,
                 std::function<void(pointer)> onDisconnect)
             {
-                auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper));
+                auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper, serverConfig));
                 conn->mOnDisconnect = std::move(onDisconnect);
                 return conn;
             }
@@ -48,10 +50,11 @@ namespace ColumnLynx::Net::TCP {
             std::array<uint8_t, 32> getAESKey() const;
         
         private:
-            TCPConnection(asio::ip::tcp::socket socket, Utils::LibSodiumWrapper* sodiumWrapper)
+            TCPConnection(asio::ip::tcp::socket socket, std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper, std::unordered_map<std::string, std::string>* serverConfig)
                 :
                 mHandler(std::make_shared<MessageHandler>(std::move(socket))),
                 mLibSodiumWrapper(sodiumWrapper),
+                mRawServerConfig(serverConfig),
                 mHeartbeatTimer(mHandler->socket().get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
                 mLastHeartbeatSent(std::chrono::steady_clock::now())
@@ -64,7 +67,8 @@ namespace ColumnLynx::Net::TCP {
 
             std::shared_ptr<MessageHandler> mHandler;
             std::function<void(std::shared_ptr<TCPConnection>)> mOnDisconnect;
-            Utils::LibSodiumWrapper *mLibSodiumWrapper;
+            std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper;
+            std::unordered_map<std::string, std::string>* mRawServerConfig;
             std::array<uint8_t, 32> mConnectionAESKey;
             uint64_t mConnectionSessionID;
             AsymPublicKey mConnectionPublicKey;

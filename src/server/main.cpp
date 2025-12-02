@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         log("Using virtual interface: " + tun->getName());
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
-        LibSodiumWrapper sodiumWrapper = LibSodiumWrapper();
+        std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
 
         auto itPubkey = config.find("SERVER_PUBLIC_KEY");
         auto itPrivkey = config.find("SERVER_PRIVATE_KEY");
@@ -91,27 +91,26 @@ int main(int argc, char** argv) {
             std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), sk.size(), sk.begin());
             std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
 
-            sodiumWrapper.setKeys(pk, sk);
+            sodiumWrapper->setKeys(pk, sk);
         } else {
             warn("No keypair found in config file! Using random key.");
         }
 
-        log("Server public key: " + bytesToHexString(sodiumWrapper.getPublicKey(), crypto_sign_PUBLICKEYBYTES));
-        //log("Server private key: " + bytesToHexString(sodiumWrapper.getPrivateKey(), crypto_sign_SECRETKEYBYTES)); // TEMP, remove later
+        log("Server public key: " + bytesToHexString(sodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES));
 
-        bool hostRunning = true;
+        std::shared_ptr<bool> hostRunning = std::make_shared<bool>(true);
 
         asio::io_context io;
 
-        auto server = std::make_shared<TCPServer>(io, serverPort(), &sodiumWrapper, &hostRunning, ipv4Only);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), &hostRunning, ipv4Only, tun);
+        auto server = std::make_shared<TCPServer>(io, serverPort(), sodiumWrapper, hostRunning, ipv4Only);
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), hostRunning, ipv4Only, tun);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
             log("Received termination signal. Shutting down server gracefully.");
             done = 1;
             asio::post(io, [&]() {
-                hostRunning = false;
+                *hostRunning = false;
                 server->stop();
                 udpServer->stop();
             });
@@ -145,9 +144,6 @@ int main(int argc, char** argv) {
         }
 
         log("Shutting down server...");
-        /*hostRunning = false;
-        server->stop();
-        udpServer->stop();*/
 
         io.stop();
         if (ioThread.joinable()) {

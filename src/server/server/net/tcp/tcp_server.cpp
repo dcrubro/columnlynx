@@ -31,10 +31,11 @@ namespace ColumnLynx::Net::TCP {
                         mStartAccept();
                     return;
                 }
-            
+
                 auto client = TCPConnection::create(
                     std::move(socket),
                     mSodiumWrapper,
+                    &mRawServerConfig,
                     [this](std::shared_ptr<TCPConnection> c) {
                         mClients.erase(c);
                         Utils::log("Client removed.");
