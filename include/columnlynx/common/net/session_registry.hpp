@@ -115,30 +115,36 @@ namespace ColumnLynx::Net {
             // Get the lowest available IPv4 address; Returns 0 if none available
             uint32_t getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
                 std::shared_lock lock(mMutex);
-                
-                uint32_t hostSpace = (1u << (32 - mask)) - 2; // Usable hosts
 
-                // Skip 0 (network) and 1 (server reserved), start at 2
-                for (uint32_t offset = 2; offset <= hostSpace; offset++) {
+                uint32_t hostCount = (1u << (32 - mask));
+                uint32_t firstHost = 2;
+                uint32_t lastHost  = hostCount - 2;
+
+                for (uint32_t offset = firstHost; offset <= lastHost; offset++) {
                     uint32_t candidateIP = baseIP + offset;
-                    if (mSessionIPs.find(candidateIP) == mSessionIPs.end()) {
+                    if (mIPSessions.find(candidateIP) == mIPSessions.end()) {
                         return candidateIP;
                     }
                 }
             
-                return 0; // No available IPs
+                return 0;
             }
 
-            // Lock an IP as assigned to a specific session
             void lockIP(uint64_t sessionID, uint32_t ip) {
                 std::unique_lock lock(mMutex);
                 mSessionIPs[sessionID] = ip;
+                mIPSessions[ip] = mSessions.find(sessionID)->second;
             }
 
-            // Unlock the IP associated with a given session
             void deallocIP(uint64_t sessionID) {
                 std::unique_lock lock(mMutex);
-                mSessionIPs.erase(sessionID);
+            
+                auto it = mSessionIPs.find(sessionID);
+                if (it != mSessionIPs.end()) {
+                    uint32_t ip = it->second;
+                    mIPSessions.erase(ip);
+                    mSessionIPs.erase(it);
+                }
             }
 
         private:
