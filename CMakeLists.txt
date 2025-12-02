@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # If MAJOR is 0, and MINOR > 0, Version is BETA
 
 project(ColumnLynx
-    VERSION 0.0.5
+    VERSION 0.0.6
     LANGUAGES CXX
 )
 
@@ -19,7 +19,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #set(CMAKE_CXX_FLAGS_DEBUG "-g")
 #add_compile_options(${CMAKE_CXX_FLAGS_DEBUG})
 
-add_compile_definitions(DEBUG=1) # TODO: Forcing for now, add dymanic based on compile flags later
+if(DEBUG)
+    add_compile_definitions(DEBUG=1) # TODO: Forcing for now, add dymanic based on compile flags later
+endif()
 
 include(FetchContent)
 
@@ -38,7 +40,7 @@ endif()
 if(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic -O3)
     add_link_options(-pthread)
 endif()
 

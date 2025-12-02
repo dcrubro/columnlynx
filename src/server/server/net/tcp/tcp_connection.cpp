@@ -202,7 +202,18 @@ namespace ColumnLynx::Net::TCP {
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
-                    uint32_t clientIP = SessionRegistry::getInstance().getFirstAvailableIP();
+                    std::string networkString = mRawServerConfig->find("NETWORK")->second; // The load check guarantees that this value exists
+                    uint8_t configMask = std::stoi(mRawServerConfig->find("SUBNET_MASK")->second); // Same deal here
+
+                    uint32_t baseIP = Net::VirtualInterface::stringToIpv4(networkString);
+
+                    if (baseIP == 0) {
+                        Utils::warn("Your NETWORK value in the server configuration is malformed! I will not be able to accept connections! (Connection " + reqAddr + " was killed)");
+                        disconnect();
+                        return;
+                    }
+
+                    uint32_t clientIP = SessionRegistry::getInstance().getFirstAvailableIP(baseIP, configMask);
 
                     if (clientIP == 0) {
                         Utils::warn("Out of available IPs! Disconnecting client " + reqAddr);
@@ -214,12 +225,10 @@ namespace ColumnLynx::Net::TCP {
                     tunConfig.version = Utils::protocolVersion();
                     tunConfig.prefixLength = 24;
                     tunConfig.mtu = 1420;
-                    tunConfig.serverIP = htonl(0x0A0A0001); // 10.10.0.1
-                    tunConfig.clientIP = htonl(clientIP); // 10.10.0.X
+                    tunConfig.serverIP = htonl(baseIP + 1); // e.g. 10.10.0.1
+                    tunConfig.clientIP = htonl(clientIP); // e.g. 10.10.0.X
                     tunConfig.dns1 = htonl(0x08080808);    // 8.8.8.8
                     tunConfig.dns2 = 0;
-
-                    SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
                     uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
 
@@ -238,6 +247,7 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
+                    SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
                 } catch (const std::exception& e) {
                     Utils::error("Failed to decrypt HANDSHAKE_EXCHANGE_KEY from " + reqAddr + ": " + e.what());

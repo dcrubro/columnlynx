@@ -49,7 +49,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "a0.5";
+        return "a0.6";
     }
 
     unsigned short serverPort() {
@@ -118,7 +118,7 @@ namespace ColumnLynx::Utils {
         return out;
     }
 
-    std::unordered_map<std::string, std::string> getConfigMap(std::string path) {
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path, std::vector<std::string> requiredKeys) {
         // TODO: Currently re-reads every time.
         std::vector<std::string> readLines;
 
@@ -143,6 +143,14 @@ namespace ColumnLynx::Utils {
             std::getline(ss, val, delimiter);
 
             config.insert({ key, val });
+        }
+
+        if (!requiredKeys.empty()) {
+            for (std::string x : requiredKeys) {
+                if (config.find(x) == config.end()) {
+                    throw std::runtime_error("Config doesn't contain all required keys! (Missing: '" + x + "')");
+                }
+            }
         }
 
         return config;

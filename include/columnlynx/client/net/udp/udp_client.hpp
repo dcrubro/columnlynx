@@ -17,8 +17,8 @@ namespace ColumnLynx::Net::UDP {
             UDPClient(asio::io_context& ioContext,
                       const std::string& host,
                       const std::string& port,
-                      std::array<uint8_t, 32>* aesKeyRef,
-                      uint64_t* sessionIDRef,
+                      std::shared_ptr<std::array<uint8_t, 32>> aesKeyRef,
+                      std::shared_ptr<uint64_t> sessionIDRef,
                       std::shared_ptr<VirtualInterface> tunRef = nullptr)
                 : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port), mAesKeyRef(aesKeyRef), mSessionIDRef(sessionIDRef), mTunRef(tunRef) 
             {
@@ -43,8 +43,8 @@ namespace ColumnLynx::Net::UDP {
             asio::ip::udp::endpoint mRemoteEndpoint;
             std::string mHost;
             std::string mPort;
-            std::array<uint8_t, 32>* mAesKeyRef;
-            uint64_t* mSessionIDRef;
+            std::shared_ptr<std::array<uint8_t, 32>> mAesKeyRef;
+            std::shared_ptr<uint64_t> mSessionIDRef;
             std::shared_ptr<VirtualInterface> mTunRef = nullptr;
             std::array<uint8_t, 2048> mRecvBuffer; // Adjust size as needed
     };

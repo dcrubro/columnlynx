@@ -26,12 +26,16 @@ Configurating the server and client are are relatively easy. Currently (since th
 
 - **SERVER_PUBLIC_KEY** (Hex String): The public key to be used
 - **SERVER_PRIVATE_KEY** (Hex String): The private key to be used
+- **NETWORK** (IPv4 Format): The network IPv4 to be used (Server Interface still needs to be configured manually)
+- **SUBNET_MASK** (Integer): The subnet mask to be used (ensure proper length, it will not be checked)
 
 **Example:**
 
 ```
 SERVER_PUBLIC_KEY=787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
 SERVER_PRIVATE_KEY=778604245F57B847E63BD85DE8208FF1A127FB559895195928C3987E246B77B8787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+NETWORK=10.10.0.0
+SUBNET_MASK=24
 ```
 
 <hr></hr>
@@ -75,6 +79,8 @@ CLIENT_PRIVATE_KEY=9B486A5B1509FA216F9EEFED85CACF2384E9D902A76CC979BFA143C18B869
 ColumnLynx makes use of both **TCP** and **UDP**. **TCP** is used for the initial handshake and commands, which **UDP** is used for actual packet transmission.
 
 It operates on port **48042** for both TCP and UDP.
+
+Generally, all transmission is done in **little-endian byte order**, since pretty much every single modern architecture uses it by default. The only exemption to this is the **transmission of IP addresses** (for the **Virtual Interface**), which is **big-endian**.
 
 ### Handshake Procedure
 

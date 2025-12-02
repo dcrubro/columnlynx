@@ -13,6 +13,8 @@
 #include <fstream>
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
+#include <algorithm>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -21,6 +23,10 @@
     #include <sys/utsname.h>
     #include <unistd.h>
 #endif
+
+namespace ColumnLynx {
+    using IPv6Addr = std::array<uint8_t, 16>;
+}
 
 namespace ColumnLynx::Utils {
     // General log function. Use for logging important information.
@@ -76,6 +82,18 @@ namespace ColumnLynx::Utils {
         return cbswap64(x);
     }
 
+    template <typename T>
+    T cbswap128(const T& x) {
+        static_assert(sizeof(T) == 16, "cbswap128 requires a 128-bit type");
+
+        T out{};
+        const uint8_t* src = reinterpret_cast<const uint8_t*>(&x);
+        uint8_t* dst = reinterpret_cast<uint8_t*>(&out);
+        std::reverse_copy(src, src + 16, dst);
+
+        return out;
+    }
+
     // Returns the config file in an unordered_map format. This purely reads the config file, you still need to parse it manually.
-    std::unordered_map<std::string, std::string> getConfigMap(std::string path);
+    std::unordered_map<std::string, std::string> getConfigMap(std::string path, std::vector<std::string> requiredKeys = {});
 };
