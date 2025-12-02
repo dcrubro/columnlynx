@@ -129,16 +129,6 @@ namespace ColumnLynx::Utils {
             readLines.push_back(line);
         }
 
-        if (!requiredKeys.empty()) {
-            // Check if they exist using unordered_set magic
-            std::unordered_set<std::string> setA(readLines.begin(), readLines.end());
-            for (std::string x : requiredKeys) {
-                if (!setA.count(x)) {
-                    throw std::runtime_error("Config doesn't contain all required keys! (Missing: '" + x + "')");
-                }
-            }
-        }
-
         // Parse them into the struct
         std::unordered_map<std::string, std::string> config;
         char delimiter = '=';
@@ -153,6 +143,14 @@ namespace ColumnLynx::Utils {
             std::getline(ss, val, delimiter);
 
             config.insert({ key, val });
+        }
+
+        if (!requiredKeys.empty()) {
+            for (std::string x : requiredKeys) {
+                if (config.find(x) == config.end()) {
+                    throw std::runtime_error("Config doesn't contain all required keys! (Missing: '" + x + "')");
+                }
+            }
         }
 
         return config;
