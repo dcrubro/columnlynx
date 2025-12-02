@@ -133,6 +133,10 @@ namespace ColumnLynx::Net {
             void lockIP(uint64_t sessionID, uint32_t ip) {
                 std::unique_lock lock(mMutex);
                 mSessionIPs[sessionID] = ip;
+                
+                if (mIPSessions.find(sessionID) == mIPSessions.end()) {
+                    Utils::debug("yikes");
+                }
                 mIPSessions[ip] = mSessions.find(sessionID)->second;
             }
 
