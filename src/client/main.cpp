@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
             if (packet.empty()) {
                 continue;
             }
-            
+
             udpClient->sendMessage(std::string(packet.begin(), packet.end()));
         }
 
