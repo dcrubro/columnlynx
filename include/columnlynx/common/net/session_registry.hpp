@@ -10,6 +10,9 @@
 #include <array>
 #include <cmath>
 #include <sodium.h>
+#include <mutex>
+#include <atomic>
+#include <asio.hpp>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 
@@ -49,107 +52,36 @@ namespace ColumnLynx::Net {
             static SessionRegistry& getInstance() { static SessionRegistry instance; return instance; }
 
             // Insert or replace a session entry
-            void put(uint64_t sessionID, std::shared_ptr<SessionState> state) {
-                std::unique_lock lock(mMutex);
-                mSessions[sessionID] = std::move(state);
-                mIPSessions[mSessions[sessionID]->clientTunIP] = mSessions[sessionID];
-            }
+            void put(uint64_t sessionID, std::shared_ptr<SessionState> state);
 
             // Lookup a session entry by session ID
-            std::shared_ptr<const SessionState> get(uint64_t sessionID) const {
-                std::shared_lock lock(mMutex);
-                auto it = mSessions.find(sessionID);
-                return (it == mSessions.end()) ? nullptr : it->second;
-            }
+            std::shared_ptr<const SessionState> get(uint64_t sessionID) const;
 
             // Lookup a session entry by IPv4
-            std::shared_ptr<const SessionState> getByIP(uint32_t ip) const {
-                std::shared_lock lock(mMutex);
-                auto it = mIPSessions.find(ip);
-                return (it == mIPSessions.end()) ? nullptr : it->second;
-            }
+            std::shared_ptr<const SessionState> getByIP(uint32_t ip) const;
 
             // Get a snapshot of the Session Registry
-            std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snapshot() const {
-                std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snap;
-                std::shared_lock lock(mMutex);
-                snap = mSessions;
-                return snap;
-            }
+            std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snapshot() const;
 
             // Remove a session by ID
-            void erase(uint64_t sessionID) {
-                std::unique_lock lock(mMutex);
-                mSessions.erase(sessionID);
-            }
+            void erase(uint64_t sessionID);
 
             // Cleanup expired sessions
-            void cleanupExpired() {
-                std::unique_lock lock(mMutex);
-                auto now = std::chrono::steady_clock::now();
-                for (auto it = mSessions.begin(); it != mSessions.end(); ) {
-                    if (it->second && it->second->expires <= now) {
-                        it = mSessions.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-
-                for (auto it = mIPSessions.begin(); it != mIPSessions.end(); ) {
-                    if (it->second && it->second->expires <= now) {
-                        it = mIPSessions.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-            }
+            void cleanupExpired();
 
             // Get the number of registered sessions
-            int size() const {
-                std::shared_lock lock(mMutex);
-                return static_cast<int>(mSessions.size());
-            }
+            int size() const;
 
             // IP management
 
             // Get the lowest available IPv4 address; Returns 0 if none available
-            uint32_t getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
-                std::shared_lock lock(mMutex);
+            uint32_t getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const;
 
-                uint32_t hostCount = (1u << (32 - mask));
-                uint32_t firstHost = 2;
-                uint32_t lastHost  = hostCount - 2;
+            // Lock IP to session ID; Do NOT call before put() - You will segfault!
+            void lockIP(uint64_t sessionID, uint32_t ip);
 
-                for (uint32_t offset = firstHost; offset <= lastHost; offset++) {
-                    uint32_t candidateIP = baseIP + offset;
-                    if (mIPSessions.find(candidateIP) == mIPSessions.end()) {
-                        return candidateIP;
-                    }
-                }
-            
-                return 0;
-            }
-
-            void lockIP(uint64_t sessionID, uint32_t ip) {
-                std::unique_lock lock(mMutex);
-                mSessionIPs[sessionID] = ip;
-                
-                /*if (mIPSessions.find(sessionID) == mIPSessions.end()) {
-                    Utils::debug("yikes");
-                }*/
-                mIPSessions[ip] = mSessions.find(sessionID)->second;
-            }
-
-            void deallocIP(uint64_t sessionID) {
-                std::unique_lock lock(mMutex);
-            
-                auto it = mSessionIPs.find(sessionID);
-                if (it != mSessionIPs.end()) {
-                    uint32_t ip = it->second;
-                    mIPSessions.erase(ip);
-                    mSessionIPs.erase(it);
-                }
-            }
+            // Unlock IP from session ID
+            void deallocIP(uint64_t sessionID);
 
         private:
             mutable std::shared_mutex mMutex;

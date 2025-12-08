@@ -26,6 +26,7 @@
     #include <sys/ioctl.h>
     #include <unistd.h>
     #include <arpa/inet.h>
+    #include <sys/poll.h>
 #elif defined(_WIN32)
     #include <windows.h>
     #include <ws2tcpip.h>
@@ -49,9 +50,13 @@ namespace ColumnLynx::Net {
             const std::string& getName() const;
             int getFd() const; // For ASIO integration (on POSIX)
 
-            static inline std::string ipv4ToString(uint32_t ip) {
+            static inline std::string ipv4ToString(uint32_t ip, bool flip = true) {
                 struct in_addr addr;
-                addr.s_addr = htonl(ip);
+
+                if (flip)
+                    addr.s_addr = htonl(ip);
+                else
+                    addr.s_addr = ip;
             
                 char buf[INET_ADDRSTRLEN];
                 if (!inet_ntop(AF_INET, &addr, buf, sizeof(buf)))

@@ -28,6 +28,7 @@ namespace ColumnLynx::Net {
 
     #elif defined(__APPLE__)
         // ---- macOS: UTUN (system control socket) ----
+        // TL;DR: macOS doesn't really have a "device file" for TUN/TAP like Linux. Instead we have to request a "system control socket" from the kernel.
         mFd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
         if (mFd < 0)
             throw std::runtime_error("socket(PF_SYSTEM) failed: " + std::string(strerror(errno)));
@@ -42,7 +43,7 @@ namespace ColumnLynx::Net {
         sc.sc_family = AF_SYSTEM;
         sc.ss_sysaddr = AF_SYS_CONTROL;
         sc.sc_id = ctlInfo.ctl_id;
-        sc.sc_unit = 0; // lynx0 (0 = auto-assign)
+        sc.sc_unit = 0; // 0 = auto-assign next utunX
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
             if (errno == EPERM)
@@ -50,15 +51,16 @@ namespace ColumnLynx::Net {
             throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
         }
 
-        // Retrieve actual utun device name
-        struct sockaddr_storage addr;
-        socklen_t addrlen = sizeof(addr);
-        if (getsockname(mFd, (struct sockaddr*)&addr, &addrlen) == 0) {
-            const struct sockaddr_ctl* addr_ctl = (const struct sockaddr_ctl*)&addr;
-            mIfName = "utun" + std::to_string(addr_ctl->sc_unit - 1);
+        // Retrieve actual utun device name via UTUN_OPT_IFNAME
+        char ifname[IFNAMSIZ];
+        socklen_t ifname_len = sizeof(ifname);
+        if (getsockopt(mFd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifname, &ifname_len) == 0) {
+            mIfName = ifname; // Update to actual assigned name
         } else {
-            mIfName = "utunX";
+            mIfName = "utun0"; // Fallback (should not happen)
         }
+
+        Utils::log("VirtualInterface: opened macOS UTUN: " + mIfName);
 
     #elif defined(_WIN32)
         // ---- Windows: Wintun (WireGuard virtual adapter) ----
@@ -95,24 +97,73 @@ namespace ColumnLynx::Net {
 
     // ------------------------------ Read ------------------------------
     std::vector<uint8_t> VirtualInterface::readPacket() {
-    #if defined(__linux__) || defined(__APPLE__)
+    #if defined(__linux__)
+
+        // Linux TUN: blocking read is fine, unblocks on fd close / EINTR
         std::vector<uint8_t> buf(4096);
         ssize_t n = read(mFd, buf.data(), buf.size());
         if (n < 0) {
             if (errno == EINTR) {
-                return {}; // Interrupted, return empty
+                return {}; // Interrupted, just return empty
             }
             throw std::runtime_error("read() failed: " + std::string(strerror(errno)));
         }
         buf.resize(n);
         return buf;
 
+    #elif defined(__APPLE__)
+
+        // macOS utun: must poll, or read() can block forever
+        std::vector<uint8_t> buf(4096);
+
+        struct pollfd pfd;
+        pfd.fd = mFd;
+        pfd.events = POLLIN;
+
+        // timeout in ms; keep it small so shutdown is responsive
+        int ret = poll(&pfd, 1, 200);
+
+        if (ret == 0) {
+            // No data yet
+            return {};
+        }
+
+        if (ret < 0) {
+            if (errno == EINTR) {
+                return {}; // Interrupted by signal
+            }
+            throw std::runtime_error("poll() failed: " + std::string(strerror(errno)));
+        }
+
+        if (!(pfd.revents & POLLIN)) {
+            return {};
+        }
+
+        ssize_t n = read(mFd, buf.data(), buf.size());
+        if (n <= 0) {
+            // 0 or -1: treat as EOF or transient; you can decide how aggressive to be
+            return {};
+        }
+
+        if (n > 4) {
+            // Drop macOS UTUN header (4 bytes)
+            std::memmove(buf.data(), buf.data() + 4, n - 4);
+            buf.resize(n - 4);
+        } else {
+            return {};
+        }
+
+        return buf;
+
     #elif defined(_WIN32)
+
         WINTUN_PACKET* packet = WintunReceivePacket(mSession, nullptr);
         if (!packet) return {};
+
         std::vector<uint8_t> buf(packet->Data, packet->Data + packet->Length);
         WintunReleaseReceivePacket(mSession, packet);
         return buf;
+
     #else
         return {};
     #endif
@@ -120,16 +171,48 @@ namespace ColumnLynx::Net {
 
     // ------------------------------ Write ------------------------------
     void VirtualInterface::writePacket(const std::vector<uint8_t>& packet) {
-    #if defined(__linux__) || defined(__APPLE__)
+    #if defined(__linux__)
+
+        // Linux TUN expects raw IP packet
         ssize_t n = write(mFd, packet.data(), packet.size());
         if (n < 0)
             throw std::runtime_error("write() failed: " + std::string(strerror(errno)));
 
+    #elif defined(__APPLE__)
+
+        if (packet.empty())
+            return;
+
+        // Detect IPv4 or IPv6
+        uint8_t version = packet[0] >> 4;
+        uint32_t af;
+
+        if (version == 4) {
+            af = htonl(AF_INET);
+        } else if (version == 6) {
+            af = htonl(AF_INET6);
+        } else {
+            throw std::runtime_error("writePacket(): unknown IP version");
+        }
+
+        // Prepend 4-byte AF header
+        std::vector<uint8_t> out(packet.size() + 4);
+        memcpy(out.data(), &af, 4);
+        memcpy(out.data() + 4, packet.data(), packet.size());
+
+        ssize_t n = write(mFd, out.data(), out.size());
+        if (n < 0)
+            throw std::runtime_error("utun write() failed: " + std::string(strerror(errno)));
+
     #elif defined(_WIN32)
+
         WINTUN_PACKET* tx = WintunAllocateSendPacket(mSession, (DWORD)packet.size());
-        if (!tx) throw std::runtime_error("WintunAllocateSendPacket failed");
+        if (!tx)
+            throw std::runtime_error("WintunAllocateSendPacket failed");
+
         memcpy(tx->Data, packet.data(), packet.size());
         WintunSendPacket(mSession, tx);
+
     #endif
     }
 
@@ -195,7 +278,8 @@ namespace ColumnLynx::Net {
     
         std::string ipStr = ipv4ToString(clientIP);
         std::string peerStr = ipv4ToString(serverIP);
-        std::string prefixStr = ipv4ToString(prefixLen);
+        std::string prefixStr = ipv4ToString(prefixLengthToNetmask(prefixLen), false);
+        Utils::debug("Prefix string: " + prefixStr);
     
         // Reset
         snprintf(cmd, sizeof(cmd),
@@ -212,7 +296,7 @@ namespace ColumnLynx::Net {
 
         // Set
         snprintf(cmd, sizeof(cmd),
-                "ifconfig %s %s %s mtu %d netmask %s up",
+                "ifconfig %s inet %s %s mtu %d netmask %s up",
                  mIfName.c_str(), ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
         system(cmd);
 
