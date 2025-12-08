@@ -49,7 +49,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "a0.6";
+        return "b0.1";
     }
 
     unsigned short serverPort() {
