@@ -269,6 +269,12 @@ namespace ColumnLynx::Net::TCP {
                     disconnect(false);
                 }
                 break;
+            case ServerMessageType::KILL_CONNECTION:
+                Utils::warn("Server is killing the connection: " + data);
+                if (mConnected) {
+                    disconnect(false);
+                }
+                break;
             default:
                 Utils::log("Received unknown message type from server.");
                 break;

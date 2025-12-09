@@ -42,7 +42,7 @@ namespace ColumnLynx::Net::TCP {
             // Set callback for disconnects
             void setDisconnectCallback(std::function<void(std::shared_ptr<TCPConnection>)> cb);
             // Disconnect the client
-            void disconnect();
+            void disconnect(bool echo = true);
 
             // Get the assigned session ID
             uint64_t getSessionID() const;

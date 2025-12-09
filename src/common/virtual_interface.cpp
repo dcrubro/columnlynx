@@ -237,7 +237,38 @@ namespace ColumnLynx::Net {
         return false;
     #endif
     }
-    
+
+    void VirtualInterface::resetIP() {
+    #if defined(__linux__)
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "ip addr flush dev %s",
+                 mIfName.c_str()
+        );
+        system(cmd);
+    #elif defined(__APPLE__)
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "ifconfig %s inet 0.0.0.0 delete",
+                 mIfName.c_str()
+        );
+        system(cmd);
+
+        snprintf(cmd, sizeof(cmd),
+                 "ifconfig %s inet6 :: delete",
+                 mIfName.c_str()
+        );
+        system(cmd);
+    #elif defined(_WIN32)
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd),
+            "netsh interface ip set address name=\"%s\" dhcp",
+            mIfName.c_str()
+        );
+        system(cmd);
+    #endif
+    }
+
     // ------------------------------------------------------------
     // Linux
     // ------------------------------------------------------------

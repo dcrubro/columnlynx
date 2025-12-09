@@ -32,14 +32,23 @@ namespace ColumnLynx::Net::TCP {
         mOnDisconnect = std::move(cb);
     }
 
-    void TCPConnection::disconnect() {
+    void TCPConnection::disconnect(bool echo) {
         std::string ip = mHandler->socket().remote_endpoint().address().to_string();
 
-        mHandler->sendMessage(ServerMessageType::GRACEFUL_DISCONNECT, "Server initiated disconnect.");
+        if (echo) {
+            mHandler->sendMessage(ServerMessageType::GRACEFUL_DISCONNECT, "Server initiated disconnect.");
+        }
         mHeartbeatTimer.cancel();
         asio::error_code ec;
         mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+        if (ec) {
+            Utils::error("Error during socket shutdown: " + ec.message());
+        }
+
         mHandler->socket().close(ec);
+        if (ec) {
+            Utils::error("Error during socket close: " + ec.message());
+        }
 
         SessionRegistry::getInstance().erase(mConnectionSessionID);
         SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
@@ -269,6 +278,11 @@ namespace ColumnLynx::Net::TCP {
             }
             case ClientMessageType::GRACEFUL_DISCONNECT: {
                 Utils::log("Received GRACEFUL_DISCONNECT from " + reqAddr + ": " + data);
+                disconnect();
+                break;
+            }
+            case ClientMessageType::KILL_CONNECTION: {
+                Utils::warn("Received KILL_CONNECTION from " + reqAddr + ": " + data);
                 disconnect();
                 break;
             }
