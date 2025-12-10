@@ -16,24 +16,37 @@ namespace ColumnLynx::Net::UDP {
             UDPServer(asio::io_context& ioContext, uint16_t port, std::shared_ptr<bool> hostRunning, bool ipv4Only = false, std::shared_ptr<VirtualInterface> tun = nullptr)
                 : mSocket(ioContext), mHostRunning(hostRunning), mTun(tun)
             {
-                asio::error_code ec;
+                asio::error_code ec_open, ec_v6only, ec_bind;
 
                 if (!ipv4Only) {
-                    // Try IPv6 first (dual-stack check)
                     asio::ip::udp::endpoint endpoint_v6(asio::ip::udp::v6(), port);
-                    mSocket.open(endpoint_v6.protocol(), ec);
-                    if (!ec) {
-                        mSocket.set_option(asio::ip::v6_only(false), ec); // Allow dual-stack if possible
-                        mSocket.bind(endpoint_v6, ec);
+                
+                    // Try opening IPv6 socket
+                    mSocket.open(endpoint_v6.protocol(), ec_open);
+                
+                    if (!ec_open) {
+                        // Try enabling dual-stack (non fatal if it fails)
+                        mSocket.set_option(asio::ip::v6_only(false), ec_v6only);
+                    
+                        // Attempt bind
+                        mSocket.bind(endpoint_v6, ec_bind);
                     }
                 }
 
-                // Fallback to IPv4 if anything failed
-                if (ec || ipv4Only) {
-                    Utils::warn("UDP: IPv6 unavailable (" + ec.message() + "), falling back to IPv4 only");
-
+                // Fallback to IPv4 if IPv6 is unusable
+                if (ipv4Only || ec_open || ec_bind) {
+                    if (!ipv4Only) {
+                        Utils::warn(
+                            "UDP: IPv6 unavailable (open=" + ec_open.message() +
+                            ", bind=" + ec_bind.message() +
+                            "), falling back to IPv4 only"
+                        );
+                    }
+                
                     asio::ip::udp::endpoint endpoint_v4(asio::ip::udp::v4(), port);
-                    mSocket.close(); // ensure clean state
+                
+                    mSocket.close();
+                    mSocket = asio::ip::udp::socket(ioContext); // fully reset internal state
                     mSocket.open(endpoint_v4.protocol());
                     mSocket.bind(endpoint_v4);
                 }

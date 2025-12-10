@@ -21,7 +21,6 @@ volatile sig_atomic_t done = 0;
 
 void signalHandler(int signum) {
     if (signum == SIGINT || signum == SIGTERM) {
-        //log("Received termination signal. Shutting down client.");
         done = 1;
     }
 }
@@ -96,13 +95,17 @@ int main(int argc, char** argv) {
         //ioThread.join();
 
         log("Client connected to " + host + ":" + port);
+        debug("Client connection flag: " + std::to_string(client->isConnected()));
+        debug("Client handshake flag: " + std::to_string(client->isHandshakeComplete()));
+        debug("isDone flag: " + std::to_string(done));
         
         // Client is running
         while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
+            //debug("Client connection flag: " + std::to_string(client->isConnected()));
             auto packet = tun->readPacket();
-            if (!client->isConnected() || done) {
+            /*if (!client->isConnected() || done) {
                 break; // Bail out if connection died or signal set while blocked
-            }
+            }*/
             
             if (packet.empty()) {
                 continue;
