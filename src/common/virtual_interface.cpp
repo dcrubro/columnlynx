@@ -6,6 +6,47 @@
 
 // This is all fucking voodoo dark magic.
 
+#if defined(_WIN32)
+
+static HMODULE gWintun = nullptr;
+
+static WintunOpenAdapterFn            WintunOpenAdapter;
+static WintunStartSessionFn           WintunStartSession;
+static WintunEndSessionFn             WintunEndSession;
+static WintunGetReadWaitEventFn       WintunGetReadWaitEvent;
+static WintunReceivePacketFn          WintunReceivePacket;
+static WintunReleaseReceivePacketFn   WintunReleaseReceivePacket;
+static WintunAllocateSendPacketFn     WintunAllocateSendPacket;
+static WintunSendPacketFn             WintunSendPacket;
+
+static void InitializeWintun()
+{
+    if (gWintun)
+        return;
+
+    gWintun = LoadLibraryExW(L"wintun.dll", nullptr,
+                             LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+    if (!gWintun)
+        throw std::runtime_error("Failed to load wintun.dll");
+
+#define RESOLVE(name) \
+    name = (name##Fn)GetProcAddress(gWintun, #name); \
+    if (!name) throw std::runtime_error("Missing Wintun symbol: " #name);
+
+    RESOLVE(WintunOpenAdapter)
+    RESOLVE(WintunStartSession)
+    RESOLVE(WintunEndSession)
+    RESOLVE(WintunGetReadWaitEvent)
+    RESOLVE(WintunReceivePacket)
+    RESOLVE(WintunReleaseReceivePacket)
+    RESOLVE(WintunAllocateSendPacket)
+    RESOLVE(WintunSendPacket)
+
+#undef RESOLVE
+}
+
+#endif // _WIN32
+
 namespace ColumnLynx::Net {
     // ------------------------------ Constructor ------------------------------
     VirtualInterface::VirtualInterface(const std::string& ifName)
@@ -63,20 +104,23 @@ namespace ColumnLynx::Net {
         Utils::log("VirtualInterface: opened macOS UTUN: " + mIfName);
 
     #elif defined(_WIN32)
-        // ---- Windows: Wintun (WireGuard virtual adapter) ----
-        WINTUN_ADAPTER_HANDLE adapter =
-            WintunOpenAdapter(L"ColumnLynx", std::wstring(ifName.begin(), ifName.end()).c_str());
-        if (!adapter)
-            throw std::runtime_error("Wintun adapter not found or not installed");
 
-        WINTUN_SESSION_HANDLE session =
-            WintunStartSession(adapter, 0x200000); // ring buffer size
-        if (!session)
+        InitializeWintun();
+
+        mAdapter = WintunOpenAdapter(
+            L"ColumnLynx",
+            std::wstring(ifName.begin(), ifName.end()).c_str()
+        );
+
+        if (!mAdapter)
+            throw std::runtime_error("Wintun adapter not found");
+
+        mSession = WintunStartSession(mAdapter, 0x200000);
+        if (!mSession)
             throw std::runtime_error("Failed to start Wintun session");
 
-        mHandle = WintunGetReadWaitEvent(session);
-        mFd = -1; // not used on Windows
-        mIfName = ifName;
+        mHandle = WintunGetReadWaitEvent(mSession);
+        mFd = -1;
 
     #else
         throw std::runtime_error("Unsupported platform");
@@ -89,9 +133,8 @@ namespace ColumnLynx::Net {
         if (mFd >= 0)
             close(mFd);
     #elif defined(_WIN32)
-        // Wintun sessions need explicit stop
-        // (assuming you stored the session handle as member)
-        // WintunEndSession(mSession);
+        if (mSession)
+            WintunEndSession(mSession);
     #endif
     }
 
@@ -158,9 +201,12 @@ namespace ColumnLynx::Net {
     #elif defined(_WIN32)
 
         WINTUN_PACKET* packet = WintunReceivePacket(mSession, nullptr);
-        if (!packet) return {};
+        if (!packet)
+            return {};
 
-        std::vector<uint8_t> buf(packet->Data, packet->Data + packet->Length);
+        std::vector<uint8_t> buf(packet->Data,
+                                 packet->Data + packet->Length);
+
         WintunReleaseReceivePacket(mSession, packet);
         return buf;
 
@@ -206,10 +252,13 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
-        WINTUN_PACKET* tx = WintunAllocateSendPacket(mSession, (DWORD)packet.size());
+        WINTUN_PACKET* tx =
+        WintunAllocateSendPacket(mSession,
+                                 static_cast<DWORD>(packet.size()));
+
         if (!tx)
             throw std::runtime_error("WintunAllocateSendPacket failed");
-
+            
         memcpy(tx->Data, packet.data(), packet.size());
         WintunSendPacket(mSession, tx);
 

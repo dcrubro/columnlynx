@@ -28,11 +28,11 @@
     #include <arpa/inet.h>
     #include <sys/poll.h>
 #elif defined(_WIN32)
+    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
-    #include <ws2tcpip.h>
     #include <winsock2.h>
+    #include <ws2tcpip.h>
     #include <wintun/wintun.h>
-    #pragma comment(lib, "advapi32.lib")
 #endif
 
 namespace ColumnLynx::Net {
@@ -127,7 +127,9 @@ namespace ColumnLynx::Net {
             std::string mIfName;
             int mFd;           // POSIX
         #if defined(_WIN32)
-            HANDLE mHandle;    // Windows
+            WINTUN_ADAPTER_HANDLE mAdapter = nullptr;
+            WINTUN_SESSION_HANDLE mSession = nullptr;
+            HANDLE mHandle = nullptr;
         #endif
     };
 }
