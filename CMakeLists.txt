@@ -100,6 +100,16 @@ endforeach()
 file(GLOB_RECURSE COMMON_SRC CONFIGURE_DEPENDS src/common/*.cpp)
 add_library(common STATIC ${COMMON_SRC})
 target_link_libraries(common PUBLIC sodium cxxopts::cxxopts)
+
+if (WIN32)
+    target_link_libraries(common PUBLIC
+        ws2_32
+        iphlpapi
+        advapi32
+        mswsock
+    )
+endif()
+
 target_include_directories(common PUBLIC 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
@@ -114,6 +124,11 @@ target_compile_definitions(common PUBLIC ASIO_STANDALONE)
 file(GLOB_RECURSE CLIENT_SRC CONFIGURE_DEPENDS src/client/*.cpp)
 add_executable(client ${CLIENT_SRC})
 target_link_libraries(client PRIVATE common sodium cxxopts::cxxopts)
+if (WIN32)
+    target_link_libraries(client PRIVATE
+        dbghelp
+    )
+endif()
 target_include_directories(client PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include
@@ -129,6 +144,11 @@ set_target_properties(client PROPERTIES OUTPUT_NAME "columnlynx_client")
 file(GLOB_RECURSE SERVER_SRC CONFIGURE_DEPENDS src/server/*.cpp)
 add_executable(server ${SERVER_SRC})
 target_link_libraries(server PRIVATE common sodium cxxopts::cxxopts)
+if (WIN32)
+    target_link_libraries(server PRIVATE
+        dbghelp
+    )
+endif()
 target_include_directories(server PRIVATE 
     ${PROJECT_SOURCE_DIR}/include 
     ${sodium_SOURCE_DIR}/src/libsodium/include

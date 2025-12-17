@@ -27,11 +27,13 @@ void signalHandler(int signum) {
 
 int main(int argc, char** argv) {
     // Capture SIGINT and SIGTERM for graceful shutdown
+#if !defined(_WIN32)
     struct sigaction action;
     memset(&action, 0, sizeof(struct sigaction));
     action.sa_handler = signalHandler;
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
+#endif
 
     PanicHandler::init();
 
@@ -67,7 +69,7 @@ int main(int argc, char** argv) {
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
 #if defined(__WIN32__)
-        WintunInitialize();
+        //WintunInitialize();
 #endif
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());

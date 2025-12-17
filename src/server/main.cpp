@@ -32,11 +32,13 @@ void signalHandler(int signum) {
 
 int main(int argc, char** argv) {
     // Capture SIGINT and SIGTERM for graceful shutdown
+#if !defined(_WIN32)
     struct sigaction action;
     memset(&action, 0, sizeof(struct sigaction));
     action.sa_handler = signalHandler;
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
+#endif
 
     cxxopts::Options options("columnlynx_server", "ColumnLynx Server Application");
 
@@ -68,7 +70,7 @@ int main(int argc, char** argv) {
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
 #if defined(__WIN32__)
-        WintunInitialize();
+        //WintunInitialize();
 #endif
 
         std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());

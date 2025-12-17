@@ -10,37 +10,43 @@
 
 static HMODULE gWintun = nullptr;
 
-static WintunOpenAdapterFn            WintunOpenAdapter;
-static WintunStartSessionFn           WintunStartSession;
-static WintunEndSessionFn             WintunEndSession;
-static WintunGetReadWaitEventFn       WintunGetReadWaitEvent;
-static WintunReceivePacketFn          WintunReceivePacket;
-static WintunReleaseReceivePacketFn   WintunReleaseReceivePacket;
-static WintunAllocateSendPacketFn     WintunAllocateSendPacket;
-static WintunSendPacketFn             WintunSendPacket;
+static WINTUN_OPEN_ADAPTER_FUNC*           pWintunOpenAdapter;
+static WINTUN_START_SESSION_FUNC*          pWintunStartSession;
+static WINTUN_END_SESSION_FUNC*            pWintunEndSession;
+static WINTUN_GET_READ_WAIT_EVENT_FUNC*    pWintunGetReadWaitEvent;
+static WINTUN_RECEIVE_PACKET_FUNC*         pWintunReceivePacket;
+static WINTUN_RELEASE_RECEIVE_PACKET_FUNC* pWintunReleaseReceivePacket;
+static WINTUN_ALLOCATE_SEND_PACKET_FUNC*   pWintunAllocateSendPacket;
+static WINTUN_SEND_PACKET_FUNC*            pWintunSendPacket;
 
 static void InitializeWintun()
 {
     if (gWintun)
         return;
 
-    gWintun = LoadLibraryExW(L"wintun.dll", nullptr,
-                             LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+    gWintun = LoadLibraryExW(
+        L"wintun.dll",
+        nullptr,
+        LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+    );
+
     if (!gWintun)
         throw std::runtime_error("Failed to load wintun.dll");
 
-#define RESOLVE(name) \
-    name = (name##Fn)GetProcAddress(gWintun, #name); \
-    if (!name) throw std::runtime_error("Missing Wintun symbol: " #name);
+#define RESOLVE(name, type)                                      \
+    p##name = reinterpret_cast<type*>(                           \
+        GetProcAddress(gWintun, #name));                          \
+    if (!p##name)                                                 \
+        throw std::runtime_error("Missing Wintun symbol: " #name);
 
-    RESOLVE(WintunOpenAdapter)
-    RESOLVE(WintunStartSession)
-    RESOLVE(WintunEndSession)
-    RESOLVE(WintunGetReadWaitEvent)
-    RESOLVE(WintunReceivePacket)
-    RESOLVE(WintunReleaseReceivePacket)
-    RESOLVE(WintunAllocateSendPacket)
-    RESOLVE(WintunSendPacket)
+    RESOLVE(WintunOpenAdapter,           WINTUN_OPEN_ADAPTER_FUNC)
+    RESOLVE(WintunStartSession,          WINTUN_START_SESSION_FUNC)
+    RESOLVE(WintunEndSession,            WINTUN_END_SESSION_FUNC)
+    RESOLVE(WintunGetReadWaitEvent,      WINTUN_GET_READ_WAIT_EVENT_FUNC)
+    RESOLVE(WintunReceivePacket,         WINTUN_RECEIVE_PACKET_FUNC)
+    RESOLVE(WintunReleaseReceivePacket,  WINTUN_RELEASE_RECEIVE_PACKET_FUNC)
+    RESOLVE(WintunAllocateSendPacket,    WINTUN_ALLOCATE_SEND_PACKET_FUNC)
+    RESOLVE(WintunSendPacket,            WINTUN_SEND_PACKET_FUNC)
 
 #undef RESOLVE
 }
@@ -107,19 +113,18 @@ namespace ColumnLynx::Net {
 
         InitializeWintun();
 
-        mAdapter = WintunOpenAdapter(
-            L"ColumnLynx",
+        mAdapter = pWintunOpenAdapter(
             std::wstring(ifName.begin(), ifName.end()).c_str()
         );
 
         if (!mAdapter)
             throw std::runtime_error("Wintun adapter not found");
 
-        mSession = WintunStartSession(mAdapter, 0x200000);
+        mSession = pWintunStartSession(mAdapter, 0x200000);
         if (!mSession)
             throw std::runtime_error("Failed to start Wintun session");
 
-        mHandle = WintunGetReadWaitEvent(mSession);
+        mHandle = pWintunGetReadWaitEvent(mSession);
         mFd = -1;
 
     #else
@@ -134,7 +139,7 @@ namespace ColumnLynx::Net {
             close(mFd);
     #elif defined(_WIN32)
         if (mSession)
-            WintunEndSession(mSession);
+            pWintunEndSession(mSession);
     #endif
     }
 
@@ -200,14 +205,13 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
-        WINTUN_PACKET* packet = WintunReceivePacket(mSession, nullptr);
+        DWORD size = 0;
+        BYTE* packet = pWintunReceivePacket(mSession, &size);
         if (!packet)
             return {};
 
-        std::vector<uint8_t> buf(packet->Data,
-                                 packet->Data + packet->Length);
-
-        WintunReleaseReceivePacket(mSession, packet);
+        std::vector<uint8_t> buf(packet, packet + size);
+        pWintunReleaseReceivePacket(mSession, packet);
         return buf;
 
     #else
@@ -252,15 +256,16 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
-        WINTUN_PACKET* tx =
-        WintunAllocateSendPacket(mSession,
-                                 static_cast<DWORD>(packet.size()));
+        BYTE* tx = pWintunAllocateSendPacket(
+            mSession,
+            static_cast<DWORD>(packet.size())
+        );
 
         if (!tx)
             throw std::runtime_error("WintunAllocateSendPacket failed");
-            
-        memcpy(tx->Data, packet.data(), packet.size());
-        WintunSendPacket(mSession, tx);
+
+        memcpy(tx, packet.data(), packet.size());
+        pWintunSendPacket(mSession, tx);
 
     #endif
     }

@@ -3,7 +3,7 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
-#include <arpa/inet.h>
+//#include <arpa/inet.h>
 
 namespace ColumnLynx::Net::TCP {
     void TCPClient::start() {
@@ -26,9 +26,13 @@ namespace ColumnLynx::Net::TCP {
                                 Utils::log("Sending handshake init to server.");
 
                                 // Check if hostname or IPv4/IPv6
-                                sockaddr_in addr4{};
-                                sockaddr_in6 addr6{};
-                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1; // Voodoo black magic
+                                try {
+                                    asio::ip::make_address(mHost);
+                                    self->mIsHostDomain = false; // IPv4 or IPv6 literal
+                                } catch (const asio::system_error&) {
+                                    self->mIsHostDomain = true;  // hostname / domain
+                                }
+
 
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
