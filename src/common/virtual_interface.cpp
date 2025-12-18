@@ -18,6 +18,7 @@ static WINTUN_RECEIVE_PACKET_FUNC*         pWintunReceivePacket;
 static WINTUN_RELEASE_RECEIVE_PACKET_FUNC* pWintunReleaseReceivePacket;
 static WINTUN_ALLOCATE_SEND_PACKET_FUNC*   pWintunAllocateSendPacket;
 static WINTUN_SEND_PACKET_FUNC*            pWintunSendPacket;
+static WINTUN_CREATE_ADAPTER_FUNC*         pWintunCreateAdapter;
 
 static void InitializeWintun()
 {
@@ -47,6 +48,7 @@ static void InitializeWintun()
     RESOLVE(WintunReleaseReceivePacket,  WINTUN_RELEASE_RECEIVE_PACKET_FUNC)
     RESOLVE(WintunAllocateSendPacket,    WINTUN_ALLOCATE_SEND_PACKET_FUNC)
     RESOLVE(WintunSendPacket,            WINTUN_SEND_PACKET_FUNC)
+    RESOLVE(WintunCreateAdapter,         WINTUN_CREATE_ADAPTER_FUNC)
 
 #undef RESOLVE
 }
@@ -113,12 +115,18 @@ namespace ColumnLynx::Net {
 
         InitializeWintun();
 
-        mAdapter = pWintunOpenAdapter(
-            std::wstring(ifName.begin(), ifName.end()).c_str()
-        );
+        mAdapter = pWintunOpenAdapter(ifaceName);
+
+        if (!mAdapter) {
+            mAdapter = pWintunCreateAdapter(
+                ifaceName,
+                L"ColumnLynx",
+                nullptr
+            );
+        }
 
         if (!mAdapter)
-            throw std::runtime_error("Wintun adapter not found");
+            throw std::runtime_error("Failed to open or create Wintun adapter");
 
         mSession = pWintunStartSession(mAdapter, 0x200000);
         if (!mSession)
