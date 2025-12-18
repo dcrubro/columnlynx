@@ -113,20 +113,25 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
+	// Convert to Windows' wchar_t* thingy
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+	std::wstring wide_string = converter.from_bytes(mIfName);
+	const wchar_t* wide_c_str = wide_string.c_str();
+
         InitializeWintun();
 
-        mAdapter = pWintunOpenAdapter(ifaceName);
+        mAdapter = pWintunOpenAdapter(wide_c_str);
 
         if (!mAdapter) {
             mAdapter = pWintunCreateAdapter(
-                ifaceName,
+                wide_c_str,
                 L"ColumnLynx",
                 nullptr
             );
         }
 
         if (!mAdapter)
-            throw std::runtime_error("Failed to open or create Wintun adapter");
+            throw std::runtime_error("Failed to open or create Wintun adapter (run running as admin)");
 
         mSession = pWintunStartSession(mAdapter, 0x200000);
         if (!mSession)
