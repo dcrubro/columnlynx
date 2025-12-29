@@ -74,14 +74,14 @@ int main(int argc, char** argv) {
 
         // Get network configuration from config file
         std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
-        std::string networkString = config.find("NETWORK") != config.end() ? config.find("NETWORK")->second : "10.10.0.0";
-        uint8_t subnetMask = config.find("SUBNET_MASK") != config.end() ? std::stoi(config.find("SUBNET_MASK")->second) : 24;
-        uint32_t baseIP = VirtualInterface::stringToIpv4(networkString);
-        uint32_t serverIP = baseIP + 1; // e.g., 10.10.0.1
+        //std::string networkString = config.find("NETWORK") != config.end() ? config.find("NETWORK")->second : "10.10.0.0";
+        //uint8_t subnetMask = config.find("SUBNET_MASK") != config.end() ? std::stoi(config.find("SUBNET_MASK")->second) : 24;
+        //uint32_t baseIP = VirtualInterface::stringToIpv4(networkString);
+        //uint32_t serverIP = baseIP + 1; // e.g., 10.10.0.1
         
         // Configure the server's TUN interface
-        tun->configureIP(serverIP, serverIP, subnetMask, 1420);
-        log("Configured TUN interface with IP " + VirtualInterface::ipv4ToString(serverIP) + "/" + std::to_string(subnetMask));
+        //tun->configureIP(serverIP, serverIP, subnetMask, 1420);
+        //log("Configured TUN interface with IP " + VirtualInterface::ipv4ToString(serverIP) + "/" + std::to_string(subnetMask));
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
