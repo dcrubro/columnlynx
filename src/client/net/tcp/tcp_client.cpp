@@ -3,7 +3,7 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
-#include <arpa/inet.h>
+//#include <arpa/inet.h>
 
 namespace ColumnLynx::Net::TCP {
     void TCPClient::start() {
@@ -13,12 +13,21 @@ namespace ColumnLynx::Net::TCP {
                 if (!ec) {
                     asio::async_connect(mSocket, endpoints,
                         [this, self](asio::error_code ec, const tcp::endpoint&) {
-                            if (!NetHelper::isExpectedDisconnect(ec)) {
+                            if (!ec) {
                                 mConnected = true;
                                 Utils::log("Client connected.");
                                 mHandler = std::make_shared<MessageHandler>(std::move(mSocket));
                                 mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
                                     mHandleMessage(static_cast<ServerMessageType>(MessageHandler::toUint8(type)), data);
+                                });
+                                // Close only after peer FIN to avoid RSTs
+                                mHandler->onDisconnect([this](const asio::error_code& ec) {
+                                    asio::error_code ec2;
+                                    if (mHandler) {
+                                        mHandler->socket().close(ec2);
+                                    }
+                                    mConnected = false;
+                                    Utils::log(std::string("Server disconnected: ") + ec.message());
                                 });
                                 mHandler->start();
                                 
@@ -26,9 +35,13 @@ namespace ColumnLynx::Net::TCP {
                                 Utils::log("Sending handshake init to server.");
 
                                 // Check if hostname or IPv4/IPv6
-                                sockaddr_in addr4{};
-                                sockaddr_in6 addr6{};
-                                self->mIsHostDomain = inet_pton(AF_INET, mHost.c_str(), (void*)(&addr4)) != 1 && inet_pton(AF_INET6, mHost.c_str(), (void*)(&addr6)) != 1; // Voodoo black magic
+                                try {
+                                    asio::ip::make_address(mHost);
+                                    self->mIsHostDomain = false; // IPv4 or IPv6 literal
+                                } catch (const asio::system_error&) {
+                                    self->mIsHostDomain = true;  // hostname / domain
+                                }
+
 
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
@@ -46,7 +59,9 @@ namespace ColumnLynx::Net::TCP {
                             
                                 mStartHeartbeat();
                             } else {
-                                Utils::error("Client connect failed: " + ec.message());
+                                if (!NetHelper::isExpectedDisconnect(ec)) {
+                                    Utils::error("Client connect failed: " + ec.message());
+                                }
                             }
                         });
                 } else {
@@ -77,18 +92,14 @@ namespace ColumnLynx::Net::TCP {
             asio::error_code ec;
             mHeartbeatTimer.cancel();
 
-            mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
+            // Half-close: stop sending, keep reading until peer FIN
+            mHandler->socket().shutdown(tcp::socket::shutdown_send, ec);
             if (ec) {
                 Utils::error("Error during socket shutdown: " + ec.message());
             }
 
-            mHandler->socket().close(ec);
-            if (ec) {
-                Utils::error("Error during socket close: " + ec.message());
-            }
-
-            mConnected = false;
-            Utils::log("Client disconnected.");
+            // Do not close immediately; rely on onDisconnect to finalize
+            Utils::log("Client initiated graceful disconnect (half-close).");
         }
     }
 
@@ -266,6 +277,12 @@ namespace ColumnLynx::Net::TCP {
             case ServerMessageType::GRACEFUL_DISCONNECT:
                 Utils::log("Server is disconnecting: " + data);
                 if (mConnected) { // Prevent Recursion
+                    disconnect(false);
+                }
+                break;
+            case ServerMessageType::KILL_CONNECTION:
+                Utils::warn("Server is killing the connection: " + data);
+                if (mConnected) {
                     disconnect(false);
                 }
                 break;

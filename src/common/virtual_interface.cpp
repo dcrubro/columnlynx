@@ -6,6 +6,55 @@
 
 // This is all fucking voodoo dark magic.
 
+#if defined(_WIN32)
+
+static HMODULE gWintun = nullptr;
+
+static WINTUN_OPEN_ADAPTER_FUNC*           pWintunOpenAdapter;
+static WINTUN_START_SESSION_FUNC*          pWintunStartSession;
+static WINTUN_END_SESSION_FUNC*            pWintunEndSession;
+static WINTUN_GET_READ_WAIT_EVENT_FUNC*    pWintunGetReadWaitEvent;
+static WINTUN_RECEIVE_PACKET_FUNC*         pWintunReceivePacket;
+static WINTUN_RELEASE_RECEIVE_PACKET_FUNC* pWintunReleaseReceivePacket;
+static WINTUN_ALLOCATE_SEND_PACKET_FUNC*   pWintunAllocateSendPacket;
+static WINTUN_SEND_PACKET_FUNC*            pWintunSendPacket;
+static WINTUN_CREATE_ADAPTER_FUNC*         pWintunCreateAdapter;
+
+static void InitializeWintun()
+{
+    if (gWintun)
+        return;
+
+    gWintun = LoadLibraryExW(
+        L"wintun.dll",
+        nullptr,
+        LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+    );
+
+    if (!gWintun)
+        throw std::runtime_error("Failed to load wintun.dll");
+
+#define RESOLVE(name, type)                                      \
+    p##name = reinterpret_cast<type*>(                           \
+        GetProcAddress(gWintun, #name));                          \
+    if (!p##name)                                                 \
+        throw std::runtime_error("Missing Wintun symbol: " #name);
+
+    RESOLVE(WintunOpenAdapter,           WINTUN_OPEN_ADAPTER_FUNC)
+    RESOLVE(WintunStartSession,          WINTUN_START_SESSION_FUNC)
+    RESOLVE(WintunEndSession,            WINTUN_END_SESSION_FUNC)
+    RESOLVE(WintunGetReadWaitEvent,      WINTUN_GET_READ_WAIT_EVENT_FUNC)
+    RESOLVE(WintunReceivePacket,         WINTUN_RECEIVE_PACKET_FUNC)
+    RESOLVE(WintunReleaseReceivePacket,  WINTUN_RELEASE_RECEIVE_PACKET_FUNC)
+    RESOLVE(WintunAllocateSendPacket,    WINTUN_ALLOCATE_SEND_PACKET_FUNC)
+    RESOLVE(WintunSendPacket,            WINTUN_SEND_PACKET_FUNC)
+    RESOLVE(WintunCreateAdapter,         WINTUN_CREATE_ADAPTER_FUNC)
+
+#undef RESOLVE
+}
+
+#endif // _WIN32
+
 namespace ColumnLynx::Net {
     // ------------------------------ Constructor ------------------------------
     VirtualInterface::VirtualInterface(const std::string& ifName)
@@ -63,20 +112,33 @@ namespace ColumnLynx::Net {
         Utils::log("VirtualInterface: opened macOS UTUN: " + mIfName);
 
     #elif defined(_WIN32)
-        // ---- Windows: Wintun (WireGuard virtual adapter) ----
-        WINTUN_ADAPTER_HANDLE adapter =
-            WintunOpenAdapter(L"ColumnLynx", std::wstring(ifName.begin(), ifName.end()).c_str());
-        if (!adapter)
-            throw std::runtime_error("Wintun adapter not found or not installed");
 
-        WINTUN_SESSION_HANDLE session =
-            WintunStartSession(adapter, 0x200000); // ring buffer size
-        if (!session)
+	// Convert to Windows' wchar_t* thingy
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+	std::wstring wide_string = converter.from_bytes(mIfName);
+	const wchar_t* wide_c_str = wide_string.c_str();
+
+        InitializeWintun();
+
+        mAdapter = pWintunOpenAdapter(wide_c_str);
+
+        if (!mAdapter) {
+            mAdapter = pWintunCreateAdapter(
+                wide_c_str,
+                L"ColumnLynx",
+                nullptr
+            );
+        }
+
+        if (!mAdapter)
+            throw std::runtime_error("Failed to open or create Wintun adapter (run running as admin)");
+
+        mSession = pWintunStartSession(mAdapter, 0x200000);
+        if (!mSession)
             throw std::runtime_error("Failed to start Wintun session");
 
-        mHandle = WintunGetReadWaitEvent(session);
-        mFd = -1; // not used on Windows
-        mIfName = ifName;
+        mHandle = pWintunGetReadWaitEvent(mSession);
+        mFd = -1;
 
     #else
         throw std::runtime_error("Unsupported platform");
@@ -89,9 +151,8 @@ namespace ColumnLynx::Net {
         if (mFd >= 0)
             close(mFd);
     #elif defined(_WIN32)
-        // Wintun sessions need explicit stop
-        // (assuming you stored the session handle as member)
-        // WintunEndSession(mSession);
+        if (mSession)
+            pWintunEndSession(mSession);
     #endif
     }
 
@@ -157,11 +218,13 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
-        WINTUN_PACKET* packet = WintunReceivePacket(mSession, nullptr);
-        if (!packet) return {};
+        DWORD size = 0;
+        BYTE* packet = pWintunReceivePacket(mSession, &size);
+        if (!packet)
+            return {};
 
-        std::vector<uint8_t> buf(packet->Data, packet->Data + packet->Length);
-        WintunReleaseReceivePacket(mSession, packet);
+        std::vector<uint8_t> buf(packet, packet + size);
+        pWintunReleaseReceivePacket(mSession, packet);
         return buf;
 
     #else
@@ -206,12 +269,16 @@ namespace ColumnLynx::Net {
 
     #elif defined(_WIN32)
 
-        WINTUN_PACKET* tx = WintunAllocateSendPacket(mSession, (DWORD)packet.size());
+        BYTE* tx = pWintunAllocateSendPacket(
+            mSession,
+            static_cast<DWORD>(packet.size())
+        );
+
         if (!tx)
             throw std::runtime_error("WintunAllocateSendPacket failed");
 
-        memcpy(tx->Data, packet.data(), packet.size());
-        WintunSendPacket(mSession, tx);
+        memcpy(tx, packet.data(), packet.size());
+        pWintunSendPacket(mSession, tx);
 
     #endif
     }
@@ -237,7 +304,38 @@ namespace ColumnLynx::Net {
         return false;
     #endif
     }
-    
+
+    void VirtualInterface::resetIP() {
+    #if defined(__linux__)
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "ip addr flush dev %s",
+                 mIfName.c_str()
+        );
+        system(cmd);
+    #elif defined(__APPLE__)
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "ifconfig %s inet 0.0.0.0 delete",
+                 mIfName.c_str()
+        );
+        system(cmd);
+
+        snprintf(cmd, sizeof(cmd),
+                 "ifconfig %s inet6 :: delete",
+                 mIfName.c_str()
+        );
+        system(cmd);
+    #elif defined(_WIN32)
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd),
+            "netsh interface ip set address name=\"%s\" dhcp",
+            mIfName.c_str()
+        );
+        system(cmd);
+    #endif
+    }
+
     // ------------------------------------------------------------
     // Linux
     // ------------------------------------------------------------
