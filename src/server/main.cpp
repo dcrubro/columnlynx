@@ -67,21 +67,16 @@ int main(int argc, char** argv) {
         bool ipv4Only = optionsObj["ipv4-only"].as<bool>();
 
         log("ColumnLynx Server, Version " + getVersion());
-        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details."); 
+        log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
+
+#if defined(__WIN32__)
+        //WintunInitialize();
+#endif
+
+        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
-
-        // Get network configuration from config file
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
-        //std::string networkString = config.find("NETWORK") != config.end() ? config.find("NETWORK")->second : "10.10.0.0";
-        //uint8_t subnetMask = config.find("SUBNET_MASK") != config.end() ? std::stoi(config.find("SUBNET_MASK")->second) : 24;
-        //uint32_t baseIP = VirtualInterface::stringToIpv4(networkString);
-        //uint32_t serverIP = baseIP + 1; // e.g., 10.10.0.1
-        
-        // Configure the server's TUN interface
-        //tun->configureIP(serverIP, serverIP, subnetMask, 1420);
-        //log("Configured TUN interface with IP " + VirtualInterface::ipv4ToString(serverIP) + "/" + std::to_string(subnetMask));
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
