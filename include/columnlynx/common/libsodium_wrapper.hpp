@@ -11,10 +11,6 @@
 #include <columnlynx/common/utils.hpp>
 #include <array>
 #include <vector>
-#include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
-#include <openssl/pem.h>
-#include <openssl/x509v3.h>
 #include <memory>
 #include <cstring>
 

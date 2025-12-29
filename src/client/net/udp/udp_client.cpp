@@ -6,10 +6,41 @@
 
 namespace ColumnLynx::Net::UDP {
     void UDPClient::start() {
-        // TODO: Add IPv6
-        auto endpoints = mResolver.resolve(asio::ip::udp::v4(), mHost, mPort);
+        asio::error_code ec;
+
+        // Resolve using an unspecified protocol (allows both IPv4 and IPv6)
+        auto endpoints = mResolver.resolve(
+            asio::ip::udp::v6(),  // Try IPv6 first (dual-stack with v4)
+            mHost,
+            mPort,
+            ec
+        );
+
+        if (ec) {
+            // If IPv6 fails (host has no AAAA), try IPv4
+            endpoints = mResolver.resolve(
+                asio::ip::udp::v4(),
+                mHost,
+                mPort,
+                ec
+            );
+        }
+
+        if (ec) {
+            Utils::error("UDP resolve failed: " + ec.message());
+            return;
+        }
+
+        // Use whichever endpoint resolved
         mRemoteEndpoint = *endpoints.begin();
-        mSocket.open(asio::ip::udp::v4());
+
+        // Open socket using the resolved endpoint's protocol
+        mSocket.open(mRemoteEndpoint.protocol(), ec);
+        if (ec) {
+            Utils::error("UDP socket open failed: " + ec.message());
+            return;
+        }
+        
         Utils::log("UDP Client ready to send to " + mRemoteEndpoint.address().to_string() + ":" + std::to_string(mRemoteEndpoint.port()));
     }
 

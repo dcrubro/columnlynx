@@ -4,6 +4,8 @@
 
 #include <asio.hpp>
 #include <iostream>
+#include <thread>
+#include <chrono>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
@@ -23,20 +25,7 @@ using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
-void signalHandler(int signum) {
-    if (signum == SIGINT || signum == SIGTERM) {
-        log("Received termination signal. Shutting down server gracefully.");
-        done = 1;
-    }
-}
-
 int main(int argc, char** argv) {
-    // Capture SIGINT and SIGTERM for graceful shutdown
-    struct sigaction action;
-    memset(&action, 0, sizeof(struct sigaction));
-    action.sa_handler = signalHandler;
-    sigaction(SIGINT, &action, nullptr);
-    sigaction(SIGTERM, &action, nullptr);
 
     cxxopts::Options options("columnlynx_server", "ColumnLynx Server Application");
 
@@ -68,7 +57,7 @@ int main(int argc, char** argv) {
         log("This software is licensed under the GPLv2 only OR the GPLv3. See LICENSES/ for details.");
 
 #if defined(__WIN32__)
-        WintunInitialize();
+        //WintunInitialize();
 #endif
 
         std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
@@ -128,6 +117,8 @@ int main(int argc, char** argv) {
         while (!done) {
             auto packet = tun->readPacket();
             if (packet.empty()) {
+                // Small sleep to avoid busy-waiting and to allow signal processing
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 continue;
             }
 

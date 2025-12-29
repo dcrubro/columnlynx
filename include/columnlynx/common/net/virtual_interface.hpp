@@ -28,11 +28,14 @@
     #include <arpa/inet.h>
     #include <sys/poll.h>
 #elif defined(_WIN32)
+    #define WIN32_LEAN_AND_MEAN
+    #define WINTUN_STATIC
     #include <windows.h>
-    #include <ws2tcpip.h>
     #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <locale>
+    #include <codecvt>
     #include <wintun/wintun.h>
-    #pragma comment(lib, "advapi32.lib")
 #endif
 
 namespace ColumnLynx::Net {
@@ -43,6 +46,8 @@ namespace ColumnLynx::Net {
 
             bool configureIP(uint32_t clientIP, uint32_t serverIP,
                              uint8_t prefixLen, uint16_t mtu);
+
+            void resetIP();
 
             std::vector<uint8_t> readPacket();
             void writePacket(const std::vector<uint8_t>& packet);
@@ -75,6 +80,42 @@ namespace ColumnLynx::Net {
                 return ntohl(addr.s_addr);
             }
 
+            static inline std::string ipv6ToString(IPv6Addr &ip,
+                                       bool flip = false)
+            {
+                struct in6_addr addr;
+            
+                if (flip) {
+                    IPv6Addr flipped;
+                    for (size_t i = 0; i < 16; ++i)
+                        flipped[i] = ip[15 - i];
+                    memcpy(addr.s6_addr, flipped.data(), 16);
+                } else {
+                    memcpy(addr.s6_addr, ip.data(), 16);
+                }
+            
+                char buf[INET6_ADDRSTRLEN];
+                if (!inet_ntop(AF_INET6, &addr, buf, sizeof(buf)))
+                    return "::";  // Fallback
+            
+                return std::string(buf);
+            }
+
+            static inline IPv6Addr stringToIpv6(const std::string &ipStr)
+            {
+                IPv6Addr result{};
+                struct in6_addr addr;
+            
+                if (inet_pton(AF_INET6, ipStr.c_str(), &addr) != 1) {
+                    // "::"
+                    result.fill(0);
+                    return result;
+                }
+            
+                memcpy(result.data(), addr.s6_addr, 16);
+                return result;
+            }
+
             static inline uint32_t prefixLengthToNetmask(uint8_t prefixLen) {
                 if (prefixLen == 0) return 0;
                 uint32_t mask = (0xFFFFFFFF << (32 - prefixLen)) & 0xFFFFFFFF;
@@ -89,7 +130,9 @@ namespace ColumnLynx::Net {
             std::string mIfName;
             int mFd;           // POSIX
         #if defined(_WIN32)
-            HANDLE mHandle;    // Windows
+            WINTUN_ADAPTER_HANDLE mAdapter = nullptr;
+            WINTUN_SESSION_HANDLE mSession = nullptr;
+            HANDLE mHandle = nullptr;
         #endif
     };
 }

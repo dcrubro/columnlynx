@@ -43,13 +43,19 @@ namespace ColumnLynx::Net::TCP {
         auto self = shared_from_this();
         asio::async_read(mSocket, asio::buffer(mHeader),
             [this, self](asio::error_code ec, std::size_t) {
-                if (!NetHelper::isExpectedDisconnect(ec)) {
+                if (!ec) {
                     mCurrentType = decodeMessageType(mHeader[0]);
 
                     uint16_t len = (mHeader[1] << 8) | mHeader[2];
                     mReadBody(len);
                 } else {
-                    Utils::error("Header read failed: " + ec.message());
+                    if (!NetHelper::isExpectedDisconnect(ec)) {
+                        Utils::error("Header read failed: " + ec.message());
+                    }
+                    // Connection closed, trigger disconnect handler
+                    if (mOnDisconnect) {
+                        mOnDisconnect(ec);
+                    }
                 }
             }
         );
@@ -61,7 +67,7 @@ namespace ColumnLynx::Net::TCP {
 
         asio::async_read(mSocket, asio::buffer(mBody),
             [this, self](asio::error_code ec, std::size_t) {
-                if (!NetHelper::isExpectedDisconnect(ec)) {
+                if (!ec) {
                     std::string payload(mBody.begin(), mBody.end());
                     
                     // Dispatch based on message type
@@ -71,8 +77,10 @@ namespace ColumnLynx::Net::TCP {
 
                     mReadHeader(); // Keep listening
                 } else {
-                    Utils::error("Body read failed: " + ec.message());
-
+                    if (!NetHelper::isExpectedDisconnect(ec)) {
+                        Utils::error("Body read failed: " + ec.message());
+                    }
+                    // Connection closed, trigger disconnect handler
                     if (mOnDisconnect) {
                         mOnDisconnect(ec);
                     }

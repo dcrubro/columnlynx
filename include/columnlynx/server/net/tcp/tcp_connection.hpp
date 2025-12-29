@@ -42,7 +42,7 @@ namespace ColumnLynx::Net::TCP {
             // Set callback for disconnects
             void setDisconnectCallback(std::function<void(std::shared_ptr<TCPConnection>)> cb);
             // Disconnect the client
-            void disconnect();
+            void disconnect(bool echo = true);
 
             // Get the assigned session ID
             uint64_t getSessionID() const;
@@ -76,5 +76,6 @@ namespace ColumnLynx::Net::TCP {
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
+            std::string mRemoteIP; // Cached remote IP to avoid calling remote_endpoint() on closed sockets
     };
 }
