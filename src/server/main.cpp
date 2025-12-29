@@ -4,6 +4,8 @@
 
 #include <asio.hpp>
 #include <iostream>
+#include <thread>
+#include <chrono>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
@@ -23,22 +25,7 @@ using namespace ColumnLynx;
 
 volatile sig_atomic_t done = 0;
 
-void signalHandler(int signum) {
-    if (signum == SIGINT || signum == SIGTERM) {
-        log("Received termination signal. Shutting down server gracefully.");
-        done = 1;
-    }
-}
-
 int main(int argc, char** argv) {
-    // Capture SIGINT and SIGTERM for graceful shutdown
-#if !defined(_WIN32)
-    struct sigaction action;
-    memset(&action, 0, sizeof(struct sigaction));
-    action.sa_handler = signalHandler;
-    sigaction(SIGINT, &action, nullptr);
-    sigaction(SIGTERM, &action, nullptr);
-#endif
 
     cxxopts::Options options("columnlynx_server", "ColumnLynx Server Application");
 
@@ -77,17 +64,6 @@ int main(int argc, char** argv) {
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
-
-        // Get network configuration from config file
-        std::string networkString = config.find("NETWORK") != config.end() ? config.find("NETWORK")->second : "10.10.0.0";
-        uint8_t subnetMask = config.find("SUBNET_MASK") != config.end() ? std::stoi(config.find("SUBNET_MASK")->second) : 24;
-        uint32_t baseIP = VirtualInterface::stringToIpv4(networkString);
-        uint32_t serverIP = baseIP + 1; // e.g., 10.10.0.1
-        
-        // Configure the server's TUN interface with point-to-point mode
-        // Server acts as a peer to clients, so use point-to-point configuration
-        tun->configureIP(serverIP, baseIP, subnetMask, 1420);
-        log("Configured TUN interface with IP " + VirtualInterface::ipv4ToString(serverIP) + " peer " + VirtualInterface::ipv4ToString(baseIP));
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
@@ -141,11 +117,13 @@ int main(int argc, char** argv) {
         while (!done) {
             auto packet = tun->readPacket();
             if (packet.empty()) {
+                // Small sleep to avoid busy-waiting and to allow signal processing
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 continue;
             }
 
             const uint8_t* ip = packet.data();
-            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address
+            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset in IPv6-mapped header
         
             auto session = SessionRegistry::getInstance().getByIP(dstIP);
             if (!session) {
