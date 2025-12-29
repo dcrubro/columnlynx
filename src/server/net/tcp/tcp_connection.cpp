@@ -11,8 +11,20 @@ namespace ColumnLynx::Net::TCP {
         });
 
         mHandler->onDisconnect([this](const asio::error_code& ec) {
-            Utils::log("Client disconnected: " + mHandler->socket().remote_endpoint().address().to_string() + " - " + ec.message());
-            disconnect();
+            // Peer has closed; finalize locally without sending RST
+            std::string ip = mHandler->socket().remote_endpoint().address().to_string();
+            Utils::log("Client disconnected: " + ip + " - " + ec.message());
+            asio::error_code ec2;
+            mHandler->socket().close(ec2);
+
+            SessionRegistry::getInstance().erase(mConnectionSessionID);
+            SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
+
+            Utils::log("Closed connection to " + ip);
+
+            if (mOnDisconnect) {
+                mOnDisconnect(shared_from_this());
+            }
         });
 
         mHandler->start();
@@ -40,24 +52,13 @@ namespace ColumnLynx::Net::TCP {
         }
         mHeartbeatTimer.cancel();
         asio::error_code ec;
-        mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+        // Half-close: stop sending, keep reading until peer FIN
+        mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_send, ec);
         if (ec) {
             Utils::error("Error during socket shutdown: " + ec.message());
         }
-
-        mHandler->socket().close(ec);
-        if (ec) {
-            Utils::error("Error during socket close: " + ec.message());
-        }
-
-        SessionRegistry::getInstance().erase(mConnectionSessionID);
-        SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
-
-        Utils::log("Closed connection to " + ip);
-
-        if (mOnDisconnect) {
-            mOnDisconnect(shared_from_this());
-        }
+        // Do not close immediately; final cleanup happens in onDisconnect
+        Utils::log("Initiated graceful disconnect (half-close) to " + ip);
     }
 
     uint64_t TCPConnection::getSessionID() const {

@@ -13,12 +13,21 @@ namespace ColumnLynx::Net::TCP {
                 if (!ec) {
                     asio::async_connect(mSocket, endpoints,
                         [this, self](asio::error_code ec, const tcp::endpoint&) {
-                            if (!NetHelper::isExpectedDisconnect(ec)) {
+                            if (!ec) {
                                 mConnected = true;
                                 Utils::log("Client connected.");
                                 mHandler = std::make_shared<MessageHandler>(std::move(mSocket));
                                 mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
                                     mHandleMessage(static_cast<ServerMessageType>(MessageHandler::toUint8(type)), data);
+                                });
+                                // Close only after peer FIN to avoid RSTs
+                                mHandler->onDisconnect([this](const asio::error_code& ec) {
+                                    asio::error_code ec2;
+                                    if (mHandler) {
+                                        mHandler->socket().close(ec2);
+                                    }
+                                    mConnected = false;
+                                    Utils::log(std::string("Server disconnected: ") + ec.message());
                                 });
                                 mHandler->start();
                                 
@@ -50,7 +59,9 @@ namespace ColumnLynx::Net::TCP {
                             
                                 mStartHeartbeat();
                             } else {
-                                Utils::error("Client connect failed: " + ec.message());
+                                if (!NetHelper::isExpectedDisconnect(ec)) {
+                                    Utils::error("Client connect failed: " + ec.message());
+                                }
                             }
                         });
                 } else {
@@ -81,18 +92,14 @@ namespace ColumnLynx::Net::TCP {
             asio::error_code ec;
             mHeartbeatTimer.cancel();
 
-            mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
+            // Half-close: stop sending, keep reading until peer FIN
+            mHandler->socket().shutdown(tcp::socket::shutdown_send, ec);
             if (ec) {
                 Utils::error("Error during socket shutdown: " + ec.message());
             }
 
-            mHandler->socket().close(ec);
-            if (ec) {
-                Utils::error("Error during socket close: " + ec.message());
-            }
-
-            mConnected = false;
-            Utils::log("Client disconnected.");
+            // Do not close immediately; rely on onDisconnect to finalize
+            Utils::log("Client initiated graceful disconnect (half-close).");
         }
     }
 

@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
         });
         //ioThread.join();
 
-        log("Client connected to " + host + ":" + port);
+        log("Attempting connection to " + host + ":" + port);
         debug("Client connection flag: " + std::to_string(client->isConnected()));
         debug("Client handshake flag: " + std::to_string(client->isHandshakeComplete()));
         debug("isDone flag: " + std::to_string(done));
