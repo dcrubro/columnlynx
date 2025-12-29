@@ -78,6 +78,17 @@ int main(int argc, char** argv) {
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
+        // Get network configuration from config file
+        std::string networkString = config.find("NETWORK") != config.end() ? config.find("NETWORK")->second : "10.10.0.0";
+        uint8_t subnetMask = config.find("SUBNET_MASK") != config.end() ? std::stoi(config.find("SUBNET_MASK")->second) : 24;
+        uint32_t baseIP = VirtualInterface::stringToIpv4(networkString);
+        uint32_t serverIP = baseIP + 1; // e.g., 10.10.0.1
+        
+        // Configure the server's TUN interface with point-to-point mode
+        // Server acts as a peer to clients, so use point-to-point configuration
+        tun->configureIP(serverIP, baseIP, subnetMask, 1420);
+        log("Configured TUN interface with IP " + VirtualInterface::ipv4ToString(serverIP) + " peer " + VirtualInterface::ipv4ToString(baseIP));
+
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
 
@@ -134,7 +145,7 @@ int main(int argc, char** argv) {
             }
 
             const uint8_t* ip = packet.data();
-            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset in IPv6-mapped header
+            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address
         
             auto session = SessionRegistry::getInstance().getByIP(dstIP);
             if (!session) {

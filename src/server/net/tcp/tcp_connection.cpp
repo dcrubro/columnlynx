@@ -6,21 +6,28 @@
 
 namespace ColumnLynx::Net::TCP {
     void TCPConnection::start() {
+        try {
+            // Cache the remote IP early to avoid calling remote_endpoint() on closed sockets later
+            mRemoteIP = mHandler->socket().remote_endpoint().address().to_string();
+        } catch (const std::exception& e) {
+            mRemoteIP = "unknown";
+            Utils::warn("Failed to get remote endpoint: " + std::string(e.what()));
+        }
+
         mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
             mHandleMessage(static_cast<ClientMessageType>(MessageHandler::toUint8(type)), data);
         });
 
         mHandler->onDisconnect([this](const asio::error_code& ec) {
             // Peer has closed; finalize locally without sending RST
-            std::string ip = mHandler->socket().remote_endpoint().address().to_string();
-            Utils::log("Client disconnected: " + ip + " - " + ec.message());
+            Utils::log("Client disconnected: " + mRemoteIP + " - " + ec.message());
             asio::error_code ec2;
             mHandler->socket().close(ec2);
 
             SessionRegistry::getInstance().erase(mConnectionSessionID);
             SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
 
-            Utils::log("Closed connection to " + ip);
+            Utils::log("Closed connection to " + mRemoteIP);
 
             if (mOnDisconnect) {
                 mOnDisconnect(shared_from_this());
@@ -31,7 +38,7 @@ namespace ColumnLynx::Net::TCP {
         mStartHeartbeat();
 
         // Placeholder for message handling setup
-        Utils::log("Client connected: " + mHandler->socket().remote_endpoint().address().to_string());
+        Utils::log("Client connected: " + mRemoteIP);
     }
 
     void TCPConnection::sendMessage(ServerMessageType type, const std::string& data) {
@@ -45,8 +52,6 @@ namespace ColumnLynx::Net::TCP {
     }
 
     void TCPConnection::disconnect(bool echo) {
-        std::string ip = mHandler->socket().remote_endpoint().address().to_string();
-
         if (echo) {
             mHandler->sendMessage(ServerMessageType::GRACEFUL_DISCONNECT, "Server initiated disconnect.");
         }
@@ -58,7 +63,7 @@ namespace ColumnLynx::Net::TCP {
             Utils::error("Error during socket shutdown: " + ec.message());
         }
         // Do not close immediately; final cleanup happens in onDisconnect
-        Utils::log("Initiated graceful disconnect (half-close) to " + ip);
+        Utils::log("Initiated graceful disconnect (half-close) to " + mRemoteIP);
     }
 
     uint64_t TCPConnection::getSessionID() const {
@@ -102,7 +107,7 @@ namespace ColumnLynx::Net::TCP {
     }
 
     void TCPConnection::mHandleMessage(ClientMessageType type, const std::string& data) {
-        std::string reqAddr = mHandler->socket().remote_endpoint().address().to_string();
+        std::string& reqAddr = mRemoteIP;
     
         switch (type) {
             case ClientMessageType::HANDSHAKE_INIT: {
