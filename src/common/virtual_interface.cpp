@@ -327,7 +327,15 @@ namespace ColumnLynx::Net {
         );
         system(cmd);
     #elif defined(_WIN32)
-        char cmd[256];
+        char cmd[512];
+        // Remove any persistent routes associated with this interface
+        snprintf(cmd, sizeof(cmd),
+            "netsh routing ip delete persistentroute all name=\"%s\"",
+            mIfName.c_str()
+        );
+        system(cmd);
+        
+        // Reset to DHCP
         snprintf(cmd, sizeof(cmd),
             "netsh interface ip set address name=\"%s\" dhcp",
             mIfName.c_str()
@@ -420,7 +428,11 @@ namespace ColumnLynx::Net {
         uint32_t maskInt = (prefixLen == 0) ? 0 : (0xFFFFFFFF << (32 - prefixLen));
         mask = ipv4ToString(maskInt);
 
-        char cmd[256];
+        // Calculate network address from IP and mask
+        uint32_t networkInt = (clientIP & maskInt);
+        std::string network = ipv4ToString(networkInt);
+
+        char cmd[512];
 
         // 1. Set the static IP + mask + gateway
         snprintf(cmd, sizeof(cmd),
@@ -433,6 +445,14 @@ namespace ColumnLynx::Net {
         snprintf(cmd, sizeof(cmd),
             "netsh interface ipv4 set subinterface \"%s\" mtu=%u store=persistent",
             mIfName.c_str(), mtu
+        );
+        system(cmd);
+
+        // 3. Add route for the VPN network to go through the TUN interface
+        // This is critical: tells Windows to send packets destined for the server/network through the TUN interface
+        snprintf(cmd, sizeof(cmd),
+            "netsh routing ip add persistentroute dest=%s/%d name=\"%s\" nexthopcfg=%s",
+            network.c_str(), prefixLen, mIfName.c_str(), gw.c_str()
         );
         system(cmd);
 
