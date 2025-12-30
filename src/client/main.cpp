@@ -48,9 +48,9 @@ int main(int argc, char** argv) {
 #else
         ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
 #endif
-        ("allow-selfsigned", "Allow self-signed certificates", cxxopts::value<bool>()->default_value("false"));
+        ("ignore-whitelist", "Ignore if server is not in whitelisted_keys", cxxopts::value<bool>()->default_value("false"));
 
-    bool insecureMode = options.parse(argc, argv).count("allow-selfsigned") > 0;
+    bool insecureMode = options.parse(argc, argv).count("ignore-whitelist") > 0;
     
     auto optionsObj = options.parse(argc, argv);
     if (optionsObj.count("help")) {
