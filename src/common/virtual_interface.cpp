@@ -72,7 +72,7 @@ namespace ColumnLynx::Net {
 
         if (ioctl(mFd, TUNSETIFF, &ifr) < 0) {
             close(mFd);
-            throw std::runtime_error("TUNSETIFF failed: " + std::string(strerror(errno)));
+            throw std::runtime_error("TUNSETIFF failed (try running with sudo): " + std::string(strerror(errno)));
         }
 
     #elif defined(__APPLE__)
@@ -96,7 +96,7 @@ namespace ColumnLynx::Net {
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
             if (errno == EPERM)
-                throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running as root)");
+                throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running with sudo)");
             throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
         }
 
@@ -326,6 +326,13 @@ namespace ColumnLynx::Net {
                  mIfName.c_str()
         );
         system(cmd);
+
+        // Wipe old routes
+        //snprintf(cmd, sizeof(cmd),
+        //         "route -n delete -net %s",
+        //         mIfName.c_str()
+        //);
+        //system(cmd);
     #elif defined(_WIN32)
         char cmd[512];
         // Remove any persistent routes associated with this interface
@@ -404,6 +411,12 @@ namespace ColumnLynx::Net {
         snprintf(cmd, sizeof(cmd),
                 "ifconfig %s inet %s %s mtu %d netmask %s up",
                  mIfName.c_str(), ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
+        system(cmd);
+
+        // Host bits are auto-normalized by the kernel on macOS, so we don't need to worry about them not being zeroed out.
+        snprintf(cmd, sizeof(cmd),
+                 "route -n add -net %s/%d -interface %s",
+                 ipStr.c_str(), prefixLen, mIfName.c_str());
         system(cmd);
 
         Utils::log("Executed command: " + std::string(cmd));

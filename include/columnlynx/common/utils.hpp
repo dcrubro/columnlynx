@@ -44,7 +44,7 @@ namespace ColumnLynx::Utils {
     std::string getVersion();
     unsigned short serverPort();
     unsigned char protocolVersion();
-    std::vector<std::string> getWhitelistedKeys();
+    std::vector<std::string> getWhitelistedKeys(std::string basePath);
 
     // Raw byte to hex string conversion helper
     std::string bytesToHexString(const uint8_t* bytes, size_t length);

@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <vector>
 #include <unordered_map>
+#include <string>
 #include <columnlynx/common/net/protocol_structs.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
@@ -29,6 +30,7 @@ namespace ColumnLynx::Net::TCP {
                       std::shared_ptr<std::array<uint8_t, 32>> aesKey,
                       std::shared_ptr<uint64_t> sessionIDRef,
                       bool insecureMode,
+                      std::string& configPath,
                       std::shared_ptr<VirtualInterface> tun = nullptr)
                 :
                 mResolver(ioContext),
@@ -42,10 +44,11 @@ namespace ColumnLynx::Net::TCP {
                 mHeartbeatTimer(mSocket.get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
                 mLastHeartbeatSent(std::chrono::steady_clock::now()),
-                mTun(tun)
+                mTun(tun),
+                mConfigDirPath(configPath)
             {
                 // Preload the config map
-                mRawClientConfig = Utils::getConfigMap("client_config");
+                mRawClientConfig = Utils::getConfigMap(configPath + "client_config");
 
                 auto itPubkey = mRawClientConfig.find("CLIENT_PUBLIC_KEY");
                 auto itPrivkey = mRawClientConfig.find("CLIENT_PRIVATE_KEY");
@@ -54,16 +57,22 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Loading keypair from config file.");
                 
                     PublicKey pk;
-                    PrivateKey sk;
+                    PrivateSeed seed;
                 
-                    std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), sk.size(), sk.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
+                    std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), seed.size(), seed.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
                     std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
                 
-                    mLibSodiumWrapper->setKeys(pk, sk);
+                    if (!mLibSodiumWrapper->recomputeKeys(seed, pk)) {
+                        throw std::runtime_error("Failed to recompute keypair from config file values!");
+                    }
 
                     Utils::debug("Newly-Loaded Public Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPublicKey(), 32));
                 } else {
+                    #if defined(DEBUG)
                     Utils::warn("No keypair found in config file! Using random key.");
+                    #else
+                    throw std::runtime_error("No keypair found in config file! Cannot start client without keys.");
+                    #endif
                 }
             }
 
@@ -109,5 +118,6 @@ namespace ColumnLynx::Net::TCP {
             Protocol::TunConfig mTunConfig;
             std::shared_ptr<VirtualInterface> mTun = nullptr;
             std::unordered_map<std::string, std::string> mRawClientConfig;
+            std::string mConfigDirPath;
     };
 }

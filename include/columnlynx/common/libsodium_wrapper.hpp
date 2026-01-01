@@ -17,6 +17,7 @@
 namespace ColumnLynx {
     using PublicKey = std::array<uint8_t, crypto_sign_PUBLICKEYBYTES>;   // Ed25519
     using PrivateKey = std::array<uint8_t, crypto_sign_SECRETKEYBYTES>;   // Ed25519
+    using PrivateSeed = std::array<uint8_t, crypto_sign_SEEDBYTES>;       // 32 bytes
     using Signature = std::array<uint8_t, crypto_sign_BYTES>;            // 64 bytes
     using SymmetricKey = std::array<uint8_t, crypto_aead_chacha20poly1305_ietf_KEYBYTES>; // 32 bytes
     using Nonce = std::array<uint8_t, crypto_aead_chacha20poly1305_ietf_NPUBBYTES>;       // 12 bytes
@@ -52,6 +53,9 @@ namespace ColumnLynx::Utils {
                     throw std::runtime_error("Conversion of signing keys to encryption keys failed!");
                 }
             }
+
+            // Recompute the keypair from a given private seed; Will return false on failure
+            bool recomputeKeys(PrivateSeed privateSeed, PublicKey storedPubKey);
 
             // Helper section
 

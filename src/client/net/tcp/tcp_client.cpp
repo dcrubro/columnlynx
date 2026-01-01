@@ -150,11 +150,12 @@ namespace ColumnLynx::Net::TCP {
     void TCPClient::mHandleMessage(ServerMessageType type, const std::string& data) {
         switch (type) {
             case ServerMessageType::HANDSHAKE_IDENTIFY: {
-                    Utils::log("Received server identity: " + data);
                     std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
+                    std::string hexServerPub = Utils::bytesToHexString(mServerPublicKey, 32);
+                    Utils::log("Received server identity. Public Key: " + hexServerPub);
 
                     // Verify pubkey against whitelisted_keys
-                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(mConfigDirPath);
                     if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mServerPublicKey, 32)) == whitelistedKeys.end()) { // Key verification is handled in later steps of the handshake
                         if (!mInsecureMode) {
                             Utils::error("Server public key not in whitelisted_keys. Terminating connection.");
