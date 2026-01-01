@@ -69,6 +69,21 @@ sudo ip link set dev lynx0 mtu 1420
 sudo ip link set dev lynx0 up
 ```
 
+In addition to creating the interface, you'll also need to make some **iptables** rules if you want to be able to **send traffic to foreign networks** (more like a *commercial VPN*).
+
+You can do these as such (example with NFT IPTABLES):
+
+- Enable the **generic IPv4 forwarding**:
+```bash
+sudo sysctl net.ipv4.ip_forward=1
+```
+- Create the masquerade (**Replace the IP subnet** with your own that you set in the config and **replace the interface** with your server's main (NOT *lynx0*) interface):
+```bash
+sudo nft add table nat
+sudo nft add chain nat postroute { type nat hook postrouting priority 100 \; }
+sudo nft add rule nat postroute ip saddr 10.10.0.0/24 oifname "eth0" masquerade
+```
+
 ### Server
  
 "**server_config**" is a file that contains the server configuration, **one variable per line**. These are the current configuration available variables:
