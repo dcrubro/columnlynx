@@ -483,14 +483,15 @@ namespace ColumnLynx::Net {
         route.DestinationPrefix.PrefixLength = prefixLen;
 
         route.NextHop.si_family = AF_INET;
-        route.NextHop.Ipv4.sin_addr.s_addr = htonl(serverIP);
+        route.NextHop.Ipv4.sin_addr.s_addr = 0;
 
-        route.Metric = 5;
+        route.Metric = 1;
         route.Protocol = static_cast<NL_ROUTE_PROTOCOL>(MIB_IPPROTO_NETMGMT);
         route.ValidLifetime = 0xFFFFFFFF;
         route.PreferredLifetime = 0xFFFFFFFF;
 
-        if (CreateIpForwardEntry2(&route) != NO_ERROR)
+        DWORD r = CreateIpForwardEntry2(&route);
+        if (r != NO_ERROR && r != ERROR_OBJECT_ALREADY_EXISTS)
             return false;
 
         return true;
