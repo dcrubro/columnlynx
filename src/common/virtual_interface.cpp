@@ -486,7 +486,7 @@ namespace ColumnLynx::Net {
         route.NextHop.Ipv4.sin_addr.s_addr = htonl(serverIP);
 
         route.Metric = 5;
-        route.Protocol = MIB_IPPROTO_NETMGMT;
+        route.Protocol = static_cast<NL_ROUTE_PROTOCOL>(MIB_IPPROTO_NETMGMT);
         route.ValidLifetime = 0xFFFFFFFF;
         route.PreferredLifetime = 0xFFFFFFFF;
 
