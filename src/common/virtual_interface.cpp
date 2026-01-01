@@ -433,41 +433,66 @@ namespace ColumnLynx::Net {
                                        uint16_t mtu)
     {
     #ifdef _WIN32
-        std::string ip  = ipv4ToString(clientIP);
-        std::string gw  = ipv4ToString(serverIP);
-        std::string mask;
+        // Interface alias → LUID → Index
+        std::wstring ifAlias(mIfName.begin(), mIfName.end());
 
-        // Convert prefixLen → subnet mask
-        uint32_t maskInt = (prefixLen == 0) ? 0 : (0xFFFFFFFF << (32 - prefixLen));
-        mask = ipv4ToString(maskInt);
+        NET_LUID luid;
+        if (ConvertInterfaceAliasToLuid(ifAlias.c_str(), &luid) != NO_ERROR)
+            return false;
 
-        // Calculate network address from IP and mask
-        uint32_t networkInt = (clientIP & maskInt);
-        std::string network = ipv4ToString(networkInt);
+        NET_IFINDEX ifIndex;
+        if (ConvertInterfaceLuidToIndex(&luid, &ifIndex) != NO_ERROR)
+            return false;
 
-        char cmd[512];
+        // ssign IPv4 address + prefix
+        MIB_UNICASTIPADDRESS_ROW addr;
+        InitializeUnicastIpAddressEntry(&addr);
 
-        // 1. Set the static IP + mask + gateway
-        snprintf(cmd, sizeof(cmd),
-            "netsh interface ip set address name=\"%s\" static %s %s %s",
-            mIfName.c_str(), ip.c_str(), mask.c_str(), gw.c_str()
-        );
-        system(cmd);
+        addr.InterfaceIndex = ifIndex;
+        addr.Address.si_family = AF_INET;
+        addr.Address.Ipv4.sin_addr.s_addr = htonl(clientIP);
+        addr.OnLinkPrefixLength = prefixLen;
+        addr.DadState = IpDadStatePreferred;
 
-        // 2. Set MTU (separate command)
-        snprintf(cmd, sizeof(cmd),
-            "netsh interface ipv4 set subinterface \"%s\" mtu=%u store=persistent",
-            mIfName.c_str(), mtu
-        );
-        system(cmd);
+        if (CreateUnicastIpAddressEntry(&addr) != NO_ERROR)
+            return false;
 
-        // 3. Add route for the VPN network to go through the TUN interface
-        // This is critical: tells Windows to send packets destined for the server/network through the TUN interface
-        snprintf(cmd, sizeof(cmd),
-            "netsh routing ip add persistentroute dest=%s/%d name=\"%s\" nexthopcfg=%s",
-            network.c_str(), prefixLen, mIfName.c_str(), gw.c_str()
-        );
-        system(cmd);
+        // Set MTU
+        MIB_IFROW ifRow;
+        ifRow.dwIndex = ifIndex;
+
+        if (GetIfEntry(&ifRow) != NO_ERROR)
+            return false;
+
+        ifRow.dwMtu = mtu;
+
+        if (SetIfEntry(&ifRow) != NO_ERROR)
+            return false;
+
+        // Add persistent route for VPN network via this interface
+        uint32_t mask =
+            (prefixLen == 0) ? 0 : (0xFFFFFFFFu << (32 - prefixLen));
+        uint32_t network = clientIP & mask;
+
+        MIB_IPFORWARD_ROW2 route;
+        InitializeIpForwardEntry(&route);
+
+        route.InterfaceIndex = ifIndex;
+        route.DestinationPrefix.Prefix.si_family = AF_INET;
+        route.DestinationPrefix.Prefix.Ipv4.sin_addr.s_addr = htonl(network);
+        route.DestinationPrefix.PrefixLength = prefixLen;
+
+        route.NextHop.si_family = AF_INET;
+        route.NextHop.Ipv4.sin_addr.s_addr = 0;
+
+        route.Metric = 1;
+        route.Protocol = static_cast<NL_ROUTE_PROTOCOL>(MIB_IPPROTO_NETMGMT);
+        route.ValidLifetime = 0xFFFFFFFF;
+        route.PreferredLifetime = 0xFFFFFFFF;
+
+        DWORD r = CreateIpForwardEntry2(&route);
+        if (r != NO_ERROR && r != ERROR_OBJECT_ALREADY_EXISTS)
+            return false;
 
         return true;
     #else
