@@ -57,6 +57,18 @@ openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 32
 
 You can then set these keys accordingly in the **server_config** and **client_config** files.
 
+### Creating the Tun Interface (Linux Server ONLY)
+
+In order for the VPN server to work, you need to create the Tun interface that the VPN will use.
+
+This is the set of commands to create one on Linux. Replace the example 10.10.0.1/24 IPv4 address with the FIRST IPv4 in the Network and Subnet Mask that you set in server_config.
+```bash
+sudo ip tuntap add dev lynx0 mode tun
+sudo ip addr add 10.10.0.1/24 dev lynx0
+sudo ip link set dev lynx0 mtu 1420
+sudo ip link set dev lynx0 up
+```
+
 ### Server
  
 "**server_config**" is a file that contains the server configuration, **one variable per line**. These are the current configuration available variables:
