@@ -36,6 +36,12 @@
     #include <locale>
     #include <codecvt>
     #include <wintun/wintun.h>
+
+    #include <iphlpapi.h>
+    #include <netioapi.h>
+    
+    #pragma comment(lib, "iphlpapi.lib")
+    #pragma comment(lib, "ws2_32.lib")
 #endif
 
 namespace ColumnLynx::Net {
