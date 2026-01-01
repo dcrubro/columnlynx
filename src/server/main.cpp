@@ -153,11 +153,11 @@ int main(int argc, char** argv) {
             }
 
             const uint8_t* ip = packet.data();
-            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset in IPv6-mapped header
+            uint32_t srcIP = ntohl(*(uint32_t*)(ip + 12)); // IPv4 source address offset (packet comes FROM client)
         
-            auto session = SessionRegistry::getInstance().getByIP(dstIP);
+            auto session = SessionRegistry::getInstance().getByIP(srcIP);
             if (!session) {
-                Utils::warn("TUN: No session found for destination IP " + VirtualInterface::ipv4ToString(dstIP));
+                Utils::warn("TUN: No session found for source IP " + VirtualInterface::ipv4ToString(srcIP));
                 continue;
             }
 
