@@ -72,7 +72,7 @@ namespace ColumnLynx::Net {
 
         if (ioctl(mFd, TUNSETIFF, &ifr) < 0) {
             close(mFd);
-            throw std::runtime_error("TUNSETIFF failed: " + std::string(strerror(errno)));
+            throw std::runtime_error("TUNSETIFF failed (try running with sudo): " + std::string(strerror(errno)));
         }
 
     #elif defined(__APPLE__)
@@ -96,7 +96,7 @@ namespace ColumnLynx::Net {
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
             if (errno == EPERM)
-                throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running as root)");
+                throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running with sudo)");
             throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
         }
 

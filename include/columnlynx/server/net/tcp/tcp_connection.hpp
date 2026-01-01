@@ -28,9 +28,10 @@ namespace ColumnLynx::Net::TCP {
                 asio::ip::tcp::socket socket,
                 std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
                 std::unordered_map<std::string, std::string>* serverConfig,
+                std::string configDirPath,
                 std::function<void(pointer)> onDisconnect)
             {
-                auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper, serverConfig));
+                auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper, serverConfig, configDirPath));
                 conn->mOnDisconnect = std::move(onDisconnect);
                 return conn;
             }
@@ -50,14 +51,15 @@ namespace ColumnLynx::Net::TCP {
             std::array<uint8_t, 32> getAESKey() const;
         
         private:
-            TCPConnection(asio::ip::tcp::socket socket, std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper, std::unordered_map<std::string, std::string>* serverConfig)
+            TCPConnection(asio::ip::tcp::socket socket, std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper, std::unordered_map<std::string, std::string>* serverConfig, std::string configDirPath)
                 :
                 mHandler(std::make_shared<MessageHandler>(std::move(socket))),
                 mLibSodiumWrapper(sodiumWrapper),
                 mRawServerConfig(serverConfig),
                 mHeartbeatTimer(mHandler->socket().get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
-                mLastHeartbeatSent(std::chrono::steady_clock::now())
+                mLastHeartbeatSent(std::chrono::steady_clock::now()),
+                mConfigDirPath(configDirPath)
             {}
 
             // Start the heartbeat routine
@@ -77,5 +79,6 @@ namespace ColumnLynx::Net::TCP {
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
             std::string mRemoteIP; // Cached remote IP to avoid calling remote_endpoint() on closed sockets
+            std::string mConfigDirPath;
     };
 }

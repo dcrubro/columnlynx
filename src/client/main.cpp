@@ -12,6 +12,10 @@
 #include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
+#if defined(__WIN32__)
+#include <windows.h>
+#endif
+
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net;
@@ -48,7 +52,15 @@ int main(int argc, char** argv) {
 #else
         ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
 #endif
-        ("ignore-whitelist", "Ignore if server is not in whitelisted_keys", cxxopts::value<bool>()->default_value("false"));
+        ("ignore-whitelist", "Ignore if server is not in whitelisted_keys", cxxopts::value<bool>()->default_value("false"))
+#if defined(__WIN32__)
+/* Get config dir in LOCALAPPDATA\ColumnLynx\ */
+        ("config-dir", "Override config dir path", cxxopts::value<std::string>()->default_value(std::string((std::getenv("LOCALAPPDATA") ? std::getenv("LOCALAPPDATA") : "C:\\ProgramData")) + "\\ColumnLynx\\"));
+#elif defined(__APPLE__)
+        ("config-dir", "Override config dir path", cxxopts::value<std::string>()->default_value(std::string((std::getenv("HOME") ? std::getenv("HOME") : "")) + "/Library/Application Support/ColumnLynx/"));
+#else
+        ("config-dir", "Override config dir path", cxxopts::value<std::string>()->default_value(std::string((std::getenv("SUDO_USER") ? "/home/" + std::string(std::getenv("SUDO_USER")) : (std::getenv("HOME") ? std::getenv("HOME") : ""))) + "/.config/columnlynx/"));
+#endif
 
     bool insecureMode = options.parse(argc, argv).count("ignore-whitelist") > 0;
     
@@ -72,6 +84,21 @@ int main(int argc, char** argv) {
         //WintunInitialize();
 #endif
 
+        // Get the config path, ENV > CLI > /etc/columnlynx
+        std::string configPath = optionsObj["config-dir"].as<std::string>();
+        const char* envConfigPath = std::getenv("COLUMNLYNX_CONFIG_DIR");
+        if (envConfigPath != nullptr) {
+            configPath = std::string(envConfigPath);
+        }
+
+        if (configPath.back() != '/' && configPath.back() != '\\') {
+            #if defined(__WIN32__)
+            configPath += "\\";
+            #else
+            configPath += "/";
+            #endif
+        }
+
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
 
@@ -84,7 +111,7 @@ int main(int argc, char** argv) {
         std::shared_ptr<uint64_t> sessionID = std::make_shared<uint64_t>(0);
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, tun);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, configPath, tun);
         auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, aesKey, sessionID, tun);
 
         client->start();
