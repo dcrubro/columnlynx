@@ -16,6 +16,10 @@
 #include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
 
+#if defined(__WIN32__)
+#include <windows.h>
+#endif
+
 using asio::ip::tcp;
 using namespace ColumnLynx::Utils;
 using namespace ColumnLynx::Net::TCP;
@@ -37,7 +41,12 @@ int main(int argc, char** argv) {
 #else
         ("i,interface", "Override used interface", cxxopts::value<std::string>()->default_value("lynx0"))
 #endif
-        ("config", "Override config file path", cxxopts::value<std::string>()->default_value("./server_config"));
+#if defined(__WIN32__)
+/* Get config dir in LOCALAPPDATA\ColumnLynx\ */
+        ("config-dir", "Override config dir path", cxxopts::value<std::string>()->default_value("C:\\ProgramData\\ColumnLynx\\"));
+#else
+        ("config-dir", "Override config dir path", cxxopts::value<std::string>()->default_value("/etc/columnlynx"));
+#endif
 
     PanicHandler::init();
 
@@ -60,7 +69,22 @@ int main(int argc, char** argv) {
         //WintunInitialize();
 #endif
 
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(optionsObj["config"].as<std::string>());
+        // Get the config path, ENV > CLI > /etc/columnlynx
+        std::string configPath = optionsObj["config-dir"].as<std::string>();
+        const char* envConfigPath = std::getenv("COLUMNLYNX_CONFIG_DIR");
+        if (envConfigPath != nullptr) {
+            configPath = std::string(envConfigPath);
+        }
+
+        if (configPath.back() != '/' && configPath.back() != '\\') {
+            #if defined(__WIN32__)
+            configPath += "\\";
+            #else
+            configPath += "/";
+            #endif
+        }
+
+        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config");
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
@@ -75,14 +99,20 @@ int main(int argc, char** argv) {
             log("Loading keypair from config file.");
 
             PublicKey pk;
-            PrivateKey sk;
+            PrivateSeed seed;
 
-            std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), sk.size(), sk.begin());
+            std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), seed.size(), seed.begin());
             std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
 
-            sodiumWrapper->setKeys(pk, sk);
+            if (!sodiumWrapper->recomputeKeys(seed, pk)) {
+                throw std::runtime_error("Failed to recompute keypair from config file values!");
+            }
         } else {
+            #if defined(DEBUG)
             warn("No keypair found in config file! Using random key.");
+            #else
+            throw std::runtime_error("No keypair found in config file! Cannot start server without keys.");
+            #endif
         }
 
         log("Server public key: " + bytesToHexString(sodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES));
@@ -91,7 +121,7 @@ int main(int argc, char** argv) {
 
         asio::io_context io;
 
-        auto server = std::make_shared<TCPServer>(io, serverPort(), sodiumWrapper, hostRunning, ipv4Only);
+        auto server = std::make_shared<TCPServer>(io, serverPort(), sodiumWrapper, hostRunning, configPath, ipv4Only);
         auto udpServer = std::make_shared<UDPServer>(io, serverPort(), hostRunning, ipv4Only, tun);
 
         asio::signal_set signals(io, SIGINT, SIGTERM);

@@ -145,7 +145,7 @@ namespace ColumnLynx::Net::TCP {
                 
                 Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
 
-                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys();
+                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(mConfigDirPath);
 
                 if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(signPk.data(), signPk.size())) == whitelistedKeys.end()) {
                     Utils::warn("Non-whitelisted client attempted to connect, terminating. Client IP: " + reqAddr);

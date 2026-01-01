@@ -36,6 +36,7 @@ namespace ColumnLynx::Net::TCP {
                     std::move(socket),
                     mSodiumWrapper,
                     &mRawServerConfig,
+                    mConfigDirPath,
                     [this](std::shared_ptr<TCPConnection> c) {
                         mClients.erase(c);
                         Utils::log("Client removed.");

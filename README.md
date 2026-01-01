@@ -18,22 +18,59 @@ This simplicity-focused design approach allows us to make an efficient, low-over
 
 ## Configuration
 
-Configurating the server and client are are relatively easy. Currently (since the project is in alpha), the configuration files **must be in the same directory as the working directory**.
+Configurating the server and client are are relatively easy. Currently (since the project is in alpha), the configuration files **must be in your system-specific config location** (which can be overriden via a CLI argument or the **COLUMNLYNX_CONFIG_DIR** Environment Variable).
+
+The defaults depends on your system.
+
+For the server:
+- Linux: **/etc/columnlynx**
+- macOS: **/etc/columnlynx**
+- Windows: **C:\ProgramData\ColumnLynx**
+
+For the client:
+- Linux: **~/.config/columnlynx**
+- macOS: **~/Library/Application Support/columnlynx**
+- Windows: **C:\Users\USERNAME\AppData\Local\ColumnLynx**
+
+### Getting a keypair
+
+Release builds of the software force you to specify your own keypairs. That's why you need to generate a keypair with some other software that you can use.
+
+This guide will show a generation example with openssl:
+
+#### Generate a keypair:
+```bash
+openssl genpkey -algorithm ED25519 -out key.pem
+```
+
+#### Extract the **Private Key Seed**:
+```bash
+openssl pkey -in key.pem -outform DER | tail -c 32 | xxd -p -c 32
+# Output example: 9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e
+```
+
+#### Extract the **Raw Public Key**:
+```bash
+openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 32
+# Output example: 1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
+```
+
+You can then set these keys accordingly in the **server_config** and **client_config** files.
 
 ### Server
  
 "**server_config**" is a file that contains the server configuration, **one variable per line**. These are the current configuration available variables:
 
-- **SERVER_PUBLIC_KEY** (Hex String): The public key to be used
-- **SERVER_PRIVATE_KEY** (Hex String): The private key to be used
+- **SERVER_PUBLIC_KEY** (Hex String): The public key to be used - Used for verification
+- **SERVER_PRIVATE_KEY** (Hex String): The private key seed to be used
 - **NETWORK** (IPv4 Format): The network IPv4 to be used (Server Interface still needs to be configured manually)
 - **SUBNET_MASK** (Integer): The subnet mask to be used (ensure proper length, it will not be checked)
 
 **Example:**
 
 ```
-SERVER_PUBLIC_KEY=787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
-SERVER_PRIVATE_KEY=778604245F57B847E63BD85DE8208FF1A127FB559895195928C3987E246B77B8787B648046F10DDD0B77A6303BE42D859AA65C52F5708CC3C58EB5691F217C7B
+SERVER_PUBLIC_KEY=1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
+SERVER_PRIVATE_KEY=9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e
 NETWORK=10.10.0.0
 SUBNET_MASK=24
 ```
@@ -53,14 +90,14 @@ SUBNET_MASK=24
  
 "**client_config**" is a file that contains the client configuration, **one variable per line**. These are the current configuration available variables:
 
-- **CLIENT_PUBLIC_KEY** (Hex String): The public key to be used
-- **CLIENT_PRIVATE_KEY** (Hex String): The private key to be used
+- **CLIENT_PUBLIC_KEY** (Hex String): The public key to be used - Used for verification
+- **CLIENT_PRIVATE_KEY** (Hex String): The private key seed to be used
 
 **Example:**
 
 ```
-CLIENT_PUBLIC_KEY=8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
-CLIENT_PRIVATE_KEY=9B486A5B1509FA216F9EEFED85CACF2384E9D902A76CC979BFA143C18B869F5C8CC8BE1A9D24639D0492EF143E84E2BD4C757C9B3B687E7035173EBFCA8FEDDA
+CLIENT_PUBLIC_KEY=1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
+CLIENT_PRIVATE_KEY=9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e
 ```
 
 <hr></hr>

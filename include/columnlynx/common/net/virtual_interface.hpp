@@ -46,7 +46,7 @@ namespace ColumnLynx::Net {
 
             bool configureIP(uint32_t clientIP, uint32_t serverIP,
                              uint8_t prefixLen, uint16_t mtu);
-
+                             
             void resetIP();
 
             std::vector<uint8_t> readPacket();

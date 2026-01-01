@@ -41,4 +41,27 @@ namespace ColumnLynx::Utils {
         randombytes_buf(randbytes.data(), randbytes.size());
         return randbytes;
     }
+
+    bool LibSodiumWrapper::recomputeKeys(PrivateSeed privateSeed, PublicKey storedPubKey) {
+        int res = crypto_sign_seed_keypair(mPublicKey.data(), mPrivateKey.data(), privateSeed.data());
+
+        if (res != 0) {
+            return false;
+        }
+
+        // Convert to Curve25519 keys for encryption
+        res = crypto_sign_ed25519_pk_to_curve25519(mXPublicKey.data(), mPublicKey.data());
+        res =  crypto_sign_ed25519_sk_to_curve25519(mXPrivateKey.data(), mPrivateKey.data());
+
+        if (res != 0) {
+            return false;
+        }
+
+        // Compare to stored for verification
+        if (sodium_memcmp(mPublicKey.data(), storedPubKey.data(), crypto_sign_PUBLICKEYBYTES) != 0) {
+            return false;
+        }
+
+        return true;
+    }
 }

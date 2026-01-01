@@ -25,14 +25,17 @@ namespace ColumnLynx::Net::TCP {
             TCPServer(asio::io_context& ioContext,
                       uint16_t port,
                       std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
-                      std::shared_ptr<bool> hostRunning, bool ipv4Only = false)
+                      std::shared_ptr<bool> hostRunning,
+                      std::string& configPath,
+                      bool ipv4Only = false)
                 : mIoContext(ioContext),
                   mAcceptor(ioContext),
                   mSodiumWrapper(sodiumWrapper),
-                  mHostRunning(hostRunning)
+                  mHostRunning(hostRunning),
+                  mConfigDirPath(configPath)
             {
                 // Preload the config map
-                mRawServerConfig = Utils::getConfigMap("server_config", {"NETWORK", "SUBNET_MASK"});
+                mRawServerConfig = Utils::getConfigMap(configPath + "server_config", {"NETWORK", "SUBNET_MASK"});
 
                 asio::error_code ec_open, ec_v6only, ec_bind;
 
@@ -84,6 +87,7 @@ namespace ColumnLynx::Net::TCP {
             std::shared_ptr<Utils::LibSodiumWrapper> mSodiumWrapper;
             std::shared_ptr<bool> mHostRunning;
             std::unordered_map<std::string, std::string> mRawServerConfig;
+            std::string mConfigDirPath;
     };
 
 }

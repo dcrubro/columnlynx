@@ -49,7 +49,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "b0.3";
+        return "1.0.0";
     }
 
     unsigned short serverPort() {
@@ -101,14 +101,19 @@ namespace ColumnLynx::Utils {
         return bytes;
     }
 
-    std::vector<std::string> getWhitelistedKeys() {
+    std::vector<std::string> getWhitelistedKeys(std::string basePath) {
         // Currently re-reads the file every time, should be fine.
         // Advantage of it is that you don't need to reload the server binary after adding/removing keys. Disadvantage is re-reading the file every time.
         // I might redo this part.
 
         std::vector<std::string> out;
 
-        std::ifstream file("whitelisted_keys"); // TODO: This is hardcoded for now, make dynamic
+        std::ifstream file(basePath + "whitelisted_keys");
+        if (!file.is_open()) {
+            warn("Failed to open whitelisted_keys file at path: " + basePath + "whitelisted_keys");
+            return out;
+        }
+
         std::string line;
 
         while (std::getline(file, line)) {
@@ -123,6 +128,10 @@ namespace ColumnLynx::Utils {
         std::vector<std::string> readLines;
 
         std::ifstream file(path);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open config file at path: " + path);
+        }
+
         std::string line;
 
         while (std::getline(file, line)) {
