@@ -57,7 +57,9 @@ openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 32
 
 You can then set these keys accordingly in the **server_config** and **client_config** files.
 
-### Creating the Tun Interface (Linux Server ONLY)
+### Server Setup (Linux Server ONLY)
+
+#### Creating the Tun Interface
 
 In order for the VPN server to work, you need to create the Tun interface that the VPN will use.
 
@@ -68,6 +70,72 @@ sudo ip addr add 10.10.0.1/24 dev lynx0
 sudo ip link set dev lynx0 mtu 1420
 sudo ip link set dev lynx0 up
 ```
+
+#### Creating the systemd service
+
+It is highly recommended to **run the server as a systemd service**, as systemd is the primary service manager on Linux.
+
+**1. Create a file for the service**
+```bash
+sudo touch /etc/systemd/system/columnlynx.service
+```
+
+**2. Open the file in your editor of choice**
+```bash
+sudo nano /etc/systemd/system/columnlynx.service
+# OR
+sudo vim /etc/systemd/system/columnlynx.service
+# OR any other editor of your choice...
+```
+
+**3. Configure the service**
+
+**Replace** the **ExecStart** and **WorkingDirectory** paths with the paths where your binaries are stored.
+
+If you configured your tun interface to belong to a custom user, you may also replace the **User** and **Group** with that user, however you must ensure that that user owns the **tun interface**, **config directory in /etc/columnlynx** and the **working directory**.
+
+This is a **simple example** for the **root user** and the executable in **/opt/columnlynx**:
+
+```
+[Unit]
+Description=ColumnLynx Server Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/columnlynx/columnlynx_server
+WorkingDirectory=/opt/columnlynx
+User=root
+Group=root
+Restart=on-failure
+StandardOutput=append:/var/log/columnlynx.log
+StandardError=append:/var/log/columnlynx.err
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**4. Reload systemd and enable the service**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable columnlynx.service
+sudo systemctl start columnlynx.service
+```
+
+#### Set firewall rules
+
+This part greatly depends on your firewall of choice. Generally you just need to **allow port 48042 on both TCP and UDP** (Both IPv4 and IPv6).
+
+This example is for **UFW**:
+
+```bash
+sudo ufw allow 48042
+sudo ufw reload
+```
+
+
+#### IPTables rules for forwarding (Optional)
 
 In addition to creating the interface, you'll also need to make some **iptables** rules if you want to be able to **send traffic to foreign networks** (more like a *commercial VPN*).
 
@@ -83,6 +151,7 @@ sudo nft add table nat
 sudo nft add chain nat postroute { type nat hook postrouting priority 100 \; }
 sudo nft add rule nat postroute ip saddr 10.10.0.0/24 oifname "eth0" masquerade
 ```
+
 
 ### Server
  
