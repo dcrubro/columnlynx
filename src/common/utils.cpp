@@ -5,25 +5,61 @@
 #include <columnlynx/common/utils.hpp>
 
 namespace ColumnLynx::Utils {
+    std::string unixMillisToISO8601(uint64_t unixMillis, bool local) {
+        using namespace std::chrono;
+
+        // Convert milliseconds since epoch to system_clock::time_point
+        system_clock::time_point tp = system_clock::time_point(milliseconds(unixMillis));
+
+        // Convert to time_t for localtime conversion
+        std::time_t tt = system_clock::to_time_t(tp);
+        std::tm localTm;
+
+        if (local) {
+#ifdef _WIN32
+        localtime_s(&localTm, &tt);
+#else
+        localtime_r(&tt, &localTm);
+#endif
+        } else {
+#ifdef _WIN32
+        gmtime_s(&localTm, &tt);
+#else
+        gmtime_r(&tt, &localTm);
+#endif
+        }
+
+        // Format the time to ISO 8601
+        char buffer[30];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &localTm);
+
+        // Append milliseconds
+        auto ms = duration_cast<milliseconds>(tp.time_since_epoch()) % 1000;
+        char iso8601[34];
+        std::snprintf(iso8601, sizeof(iso8601), "%s.%03lld", buffer, static_cast<long long>(ms.count()));
+
+        return std::string(iso8601);
+    }
+
     void log(const std::string &msg) {
         uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::cout << "\033[0m[" << std::to_string(now) << " LOG] " << msg << std::endl;
+        std::cout << "\033[0m[" << unixMillisToISO8601(now) << " LOG] " << msg << std::endl;
     }
 
     void warn(const std::string &msg) {
         uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::cerr << "\033[33m[" << std::to_string(now) << " WARN] " << msg << "\033[0m" << std::endl;
+        std::cerr << "\033[33m[" << unixMillisToISO8601(now) << " WARN] " << msg << "\033[0m" << std::endl;
     }
 
     void error(const std::string &msg) {
         uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::cerr << "\033[31m[" << std::to_string(now) << " ERROR] " << msg << "\033[0m" << std::endl;
+        std::cerr << "\033[31m[" << unixMillisToISO8601(now) << " ERROR] " << msg << "\033[0m" << std::endl;
     }
 
     void debug(const std::string &msg) {
 #if DEBUG || _DEBUG
         uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        std::cerr << "\033[95m[" << std::to_string(now) << " DEBUG] " << msg << "\033[0m" << std::endl;
+        std::cerr << "\033[95m[" << unixMillisToISO8601(now) << " DEBUG] " << msg << "\033[0m" << std::endl;
 #else
         return;
 #endif

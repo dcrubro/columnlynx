@@ -110,6 +110,10 @@ int main(int argc, char** argv) {
         aesKey->fill(0); // Defualt zeroed state until modified by handshake
         std::shared_ptr<uint64_t> sessionID = std::make_shared<uint64_t>(0);
 
+        if (insecureMode) {
+            warn("You have started the client with the --ignore-whitelist. This means that the client will NOT attempt to verify the server's public key. This is INSECURE and SHOULDN'T be used!");
+        }
+
         asio::io_context io;
         auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, configPath, tun);
         auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, aesKey, sessionID, tun);

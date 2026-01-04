@@ -29,6 +29,9 @@ namespace ColumnLynx {
 }
 
 namespace ColumnLynx::Utils {
+    // Converts unix milliseconds to a local ISO 8601 formatted string; Defaults to local time; Will use UTC if local is false.
+    std::string unixMillisToISO8601(uint64_t unixMillis, bool local = true);
+
     // General log function. Use for logging important information.
     void log(const std::string &msg);
     // General warning function. Use for logging important warnings.
