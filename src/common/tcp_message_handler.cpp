@@ -1,5 +1,5 @@
 // tcp_message_handler.cpp - TCP Message Handler for ColumnLynx
-// Copyright (C) 2025 DcruBro
+// Copyright (C) 2026 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/common/net/tcp/tcp_message_handler.hpp>

@@ -1,5 +1,5 @@
 // main.cpp - Server entry point for ColumnLynx
-// Copyright (C) 2025 DcruBro
+// Copyright (C) 2026 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <asio.hpp>
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
         if (optionsObj.count("help")) {
             std::cout << options.help() << std::endl;
             std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
-            std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
+            std::cout << "Copyright (C) 2026, The ColumnLynx Contributors.\n";
             std::cout << "This software is provided under ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n";
             return 0;
         }

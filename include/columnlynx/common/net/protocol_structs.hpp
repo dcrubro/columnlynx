@@ -1,5 +1,5 @@
 // protocol_structs.hpp - Network Protocol Structures
-// Copyright (C) 2025 DcruBro
+// Copyright (C) 2026 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #pragma once
