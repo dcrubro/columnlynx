@@ -1,5 +1,5 @@
 // main.cpp - Client entry point for ColumnLynx
-// Copyright (C) 2025 DcruBro
+// Copyright (C) 2026 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <asio.hpp>
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     if (optionsObj.count("help")) {
         std::cout << options.help() << std::endl;
         std::cout << "This software is licensed under the GPLv2-only license OR the GPLv3 license.\n";
-        std::cout << "Copyright (C) 2025, The ColumnLynx Contributors.\n";
+        std::cout << "Copyright (C) 2026, The ColumnLynx Contributors.\n";
         std::cout << "This software is provided under ABSOLUTELY NO WARRANTY, to the extent permitted by law.\n";
         return 0;
     }
@@ -109,6 +109,10 @@ int main(int argc, char** argv) {
         std::shared_ptr<std::array<uint8_t, 32>> aesKey = std::make_shared<std::array<uint8_t, 32>>(); 
         aesKey->fill(0); // Defualt zeroed state until modified by handshake
         std::shared_ptr<uint64_t> sessionID = std::make_shared<uint64_t>(0);
+
+        if (insecureMode) {
+            warn("You have started the client with the --ignore-whitelist. This means that the client will NOT attempt to verify the server's public key. This is INSECURE and SHOULDN'T be used!");
+        }
 
         asio::io_context io;
         auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, configPath, tun);
