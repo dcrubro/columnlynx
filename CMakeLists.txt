@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # If MAJOR is 0, and MINOR > 0, Version is BETA
 
 project(ColumnLynx
-    VERSION 1.0.0
+    VERSION 1.0.1
     LANGUAGES CXX
 )
 
@@ -50,7 +50,7 @@ endif()
 FetchContent_Declare(
     Sodium
     GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
-    GIT_TAG e5b985ad0dd235d8c4307ea3a385b45e76c74c6a  # Last updated at 2025-04-13
+    GIT_TAG e5b985ad0dd235d8c4307ea3a385b45e76c74c6a
 )
 
 set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)

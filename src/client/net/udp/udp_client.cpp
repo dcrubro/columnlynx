@@ -1,5 +1,5 @@
 // udp_client.cpp - UDP Client for ColumnLynx
-// Copyright (C) 2025 DcruBro
+// Copyright (C) 2026 DcruBro
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/client/net/udp/udp_client.hpp>
