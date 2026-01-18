@@ -151,8 +151,11 @@ namespace ColumnLynx::Utils {
         }
 
         std::string line;
-
         while (std::getline(file, line)) {
+            // Convert to upper case to align with the bytesToHexString() output
+            for (int i = 0; i < line.length(); i++) {
+                line[i] = toupper(line[i]);
+            }
             out.push_back(line);
         }
 

@@ -10,6 +10,8 @@ project(ColumnLynx
     LANGUAGES CXX
 )
 
+include(GNUInstallDirs)
+
 # ---------------------------------------------------------
 # General C++ setup
 # ---------------------------------------------------------
@@ -40,7 +42,7 @@ endif()
 if(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif(UNIX)
-    add_compile_options(-Wall -Wextra -Wpedantic -O3)
+    add_compile_options(-Wall -Wextra -Wpedantic -O1)
     add_link_options(-pthread)
 endif()
 
@@ -157,3 +159,15 @@ target_include_directories(server PRIVATE
 )
 target_compile_definitions(server PRIVATE ASIO_STANDALONE)
 set_target_properties(server PROPERTIES OUTPUT_NAME "columnlynx_server")
+
+# ---------------------------------------------------------
+# Install rules
+# ---------------------------------------------------------
+
+install(TARGETS
+    client
+    server
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME})
