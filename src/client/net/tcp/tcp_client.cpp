@@ -50,6 +50,8 @@ namespace ColumnLynx::Net::TCP {
                                     mLibSodiumWrapper->getXPublicKey(),
                                     mLibSodiumWrapper->getXPublicKey() + crypto_box_PUBLICKEYBYTES
                                 );*/
+
+                                const auto& mLibSodiumWrapper = ClientSession::getInstance().getSodiumWrapper();
                                 payload.insert(payload.end(),
                                     mLibSodiumWrapper->getPublicKey(),
                                     mLibSodiumWrapper->getPublicKey() + crypto_sign_PUBLICKEYBYTES
@@ -130,11 +132,9 @@ namespace ColumnLynx::Net::TCP {
                 mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
                 mHandler->socket().close(ec);
                 mConnected = false;
-
-                mGlobalKeyRef = nullptr;
-                if (mSessionIDRef) {
-                    *mSessionIDRef = 0;
-                }
+                
+                ClientSession::getInstance().setAESKey({}); // Clear AES key with all zeros
+                ClientSession::getInstance().setSessionID(0);
 
                 return;
             }
@@ -155,9 +155,10 @@ namespace ColumnLynx::Net::TCP {
                     Utils::log("Received server identity. Public Key: " + hexServerPub);
 
                     // Verify pubkey against whitelisted_keys
-                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(mConfigDirPath);
+                    const std::string& configPath = ClientSession::getInstance().getConfigPath();
+                    std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(configPath);
                     if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(mServerPublicKey, 32)) == whitelistedKeys.end()) { // Key verification is handled in later steps of the handshake
-                        if (!mInsecureMode) {
+                        if (!ClientSession::getInstance().isInsecureMode()) {
                             Utils::error("Server public key not in whitelisted_keys. Terminating connection.");
                             disconnect();
                             return;
@@ -193,16 +194,14 @@ namespace ColumnLynx::Net::TCP {
 
                         // Generate AES key and send confirmation
                         mConnectionAESKey = Utils::LibSodiumWrapper::generateRandom256Bit();
-                        if (mGlobalKeyRef) { // Copy to the global reference
-                            std::copy(mConnectionAESKey.begin(), mConnectionAESKey.end(), mGlobalKeyRef->begin());
-                        }
+                        ClientSession::getInstance().setAESKey(mConnectionAESKey);
                         AsymNonce nonce{};
                         randombytes_buf(nonce.data(), nonce.size());
 
                         // TODO: This is pretty redundant, it should return the required type directly
                         std::array<uint8_t, 32> arrayPrivateKey;
-                        std::copy(mLibSodiumWrapper->getXPrivateKey(),
-                                  mLibSodiumWrapper->getXPrivateKey() + 32,
+                        std::copy(ClientSession::getInstance().getSodiumWrapper()->getXPrivateKey(),
+                                  ClientSession::getInstance().getSodiumWrapper()->getXPrivateKey() + 32,
                                   arrayPrivateKey.begin());
 
                         std::vector<uint8_t> encr = Utils::LibSodiumWrapper::encryptAsymmetric(
@@ -249,15 +248,14 @@ namespace ColumnLynx::Net::TCP {
 
                     Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
                 
-                    if (mSessionIDRef) { // Copy to the global reference
-                        *mSessionIDRef = mConnectionSessionID;
-                    }
+                    ClientSession::getInstance().setSessionID(mConnectionSessionID);
 
                     uint32_t clientIP = ntohl(mTunConfig.clientIP);
                     uint32_t serverIP = ntohl(mTunConfig.serverIP);
                     uint8_t prefixLen = mTunConfig.prefixLength;
                     uint16_t mtu = mTunConfig.mtu;
 
+                    const auto& mTun = ClientSession::getInstance().getVirtualInterface();
                     if (mTun) {
                         mTun->configureIP(clientIP, serverIP, prefixLen, mtu);
                     }

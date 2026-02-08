@@ -48,7 +48,7 @@ namespace ColumnLynx::Net::UDP {
         UDPPacketHeader hdr{};
         randombytes_buf(hdr.nonce.data(), hdr.nonce.size());
 
-        if (mAesKeyRef == nullptr || mSessionIDRef == nullptr) {
+        if (ClientSession::getInstance().getAESKey().empty() || ClientSession::getInstance().getSessionID() == 0) {
             Utils::error("UDP Client AES key or Session ID reference is null!");
             return;
         }
@@ -57,7 +57,7 @@ namespace ColumnLynx::Net::UDP {
 
         auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
             reinterpret_cast<const uint8_t*>(data.data()), data.size(),
-            *mAesKeyRef, hdr.nonce, "udp-data"
+            ClientSession::getInstance().getAESKey(), hdr.nonce, "udp-data"
             //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
@@ -67,9 +67,10 @@ namespace ColumnLynx::Net::UDP {
             reinterpret_cast<uint8_t*>(&hdr),
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
         );
+        uint64_t sessionID = ClientSession::getInstance().getSessionID();
         packet.insert(packet.end(),
-            reinterpret_cast<uint8_t*>(mSessionIDRef.get()),
-            reinterpret_cast<uint8_t*>(mSessionIDRef.get()) + sizeof(uint64_t)
+            reinterpret_cast<uint8_t*>(&sessionID),
+            reinterpret_cast<uint8_t*>(&sessionID) + sizeof(uint64_t)
         );
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 
@@ -120,8 +121,8 @@ namespace ColumnLynx::Net::UDP {
         uint64_t sessionID;
         std::memcpy(&sessionID, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint64_t));
 
-        if (sessionID != *mSessionIDRef) {
-            Utils::warn("Got packet that isn't for me! Dropping!");
+        if (sessionID != ClientSession::getInstance().getSessionID()) {
+            Utils::warn("This packet that isn't for me! Dropping!");
             return;
         }
 
@@ -131,13 +132,13 @@ namespace ColumnLynx::Net::UDP {
             mRecvBuffer.begin() + bytes
         );
 
-        if (mAesKeyRef == nullptr) {
+        if (ClientSession::getInstance().getAESKey().empty()) {
             Utils::error("UDP Client AES key reference is null!");
             return;
         }
 
         std::vector<uint8_t> plaintext = Utils::LibSodiumWrapper::decryptMessage(
-            ciphertext.data(), ciphertext.size(), *mAesKeyRef, hdr.nonce, "udp-data"
+            ciphertext.data(), ciphertext.size(), ClientSession::getInstance().getAESKey(), hdr.nonce, "udp-data"
             //std::string(reinterpret_cast<const char*>(&mSessionIDRef), sizeof(uint64_t))
         );
 
@@ -149,6 +150,7 @@ namespace ColumnLynx::Net::UDP {
         Utils::debug("UDP Client received packet from " + mRemoteEndpoint.address().to_string() + " - Packet size: " + std::to_string(bytes));
 
         // Write to TUN
+        const auto& mTunRef = ClientSession::getInstance().getVirtualInterface();
         if (mTunRef) {
             mTunRef->writePacket(plaintext);
         }

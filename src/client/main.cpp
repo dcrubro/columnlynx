@@ -11,6 +11,8 @@
 #include <columnlynx/client/net/udp/udp_client.hpp>
 #include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
+#include <columnlynx/client/client_session.hpp>
+#include <thread>
 
 #if defined(__WIN32__)
 #include <windows.h>
@@ -99,24 +101,34 @@ int main(int argc, char** argv) {
             #endif
         }
 
+        struct ClientState initialState{};
+        initialState.configPath = configPath;
+        initialState.insecureMode = insecureMode;
+
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
+        initialState.virtualInterface = tun;
 
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
         debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper->getPublicKey(), 32));
         debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper->getPrivateKey(), 64));
+        initialState.sodiumWrapper = sodiumWrapper;
 
-        std::shared_ptr<std::array<uint8_t, 32>> aesKey = std::make_shared<std::array<uint8_t, 32>>(); 
-        aesKey->fill(0); // Defualt zeroed state until modified by handshake
-        std::shared_ptr<uint64_t> sessionID = std::make_shared<uint64_t>(0);
+        std::array<uint8_t, 32> aesKey = std::array<uint8_t, 32>(); 
+        aesKey.fill(0); // Defualt zeroed state until modified by handshake
+        uint64_t sessionID = 0;
+        initialState.aesKey = aesKey;
+        initialState.sessionID = sessionID;
+
+        ColumnLynx::ClientSession::getInstance().setClientState(std::make_shared<ClientState>(std::move(initialState))); // Set initial state
 
         if (insecureMode) {
             warn("You have started the client with the --ignore-whitelist. This means that the client will NOT attempt to verify the server's public key. This is INSECURE and SHOULDN'T be used!");
         }
 
         asio::io_context io;
-        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port, sodiumWrapper, aesKey, sessionID, insecureMode, configPath, tun);
-        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port, aesKey, sessionID, tun);
+        auto client = std::make_shared<ColumnLynx::Net::TCP::TCPClient>(io, host, port); // TODO: Move to ClientSession state
+        auto udpClient = std::make_shared<ColumnLynx::Net::UDP::UDPClient>(io, host, port);
 
         client->start();
         udpClient->start();
