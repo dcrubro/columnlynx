@@ -27,16 +27,13 @@ namespace ColumnLynx::Net::TCP {
                     }
                     Utils::error("Accept failed: " + ec.message());
                     // Try again only if still running
-                    if (mHostRunning && *mHostRunning && mAcceptor.is_open())
+                    if (ServerSession::getInstance().isHostRunning() && mAcceptor.is_open())
                         mStartAccept();
                     return;
                 }
 
                 auto client = TCPConnection::create(
                     std::move(socket),
-                    mSodiumWrapper,
-                    &mRawServerConfig,
-                    mConfigDirPath,
                     [this](std::shared_ptr<TCPConnection> c) {
                         mClients.erase(c);
                         Utils::log("Client removed.");
@@ -46,7 +43,7 @@ namespace ColumnLynx::Net::TCP {
                 client->start();
                 Utils::log("Accepted new client connection.");
             
-                if (mHostRunning && *mHostRunning && mAcceptor.is_open())
+                if (ServerSession::getInstance().isHostRunning() && mAcceptor.is_open())
                     mStartAccept();
             }
         );

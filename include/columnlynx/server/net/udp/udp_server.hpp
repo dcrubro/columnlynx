@@ -9,16 +9,18 @@
 #include <columnlynx/common/utils.hpp>
 #include <array>
 #include <columnlynx/common/net/virtual_interface.hpp>
+#include <columnlynx/common/libsodium_wrapper.hpp>
+#include <columnlynx/server/server_session.hpp>
 
 namespace ColumnLynx::Net::UDP {
     class UDPServer {
         public:
-            UDPServer(asio::io_context& ioContext, uint16_t port, std::shared_ptr<bool> hostRunning, bool ipv4Only = false, std::shared_ptr<VirtualInterface> tun = nullptr)
-                : mSocket(ioContext), mHostRunning(hostRunning), mTun(tun)
+            UDPServer(asio::io_context& ioContext, uint16_t port)
+                : mSocket(ioContext)
             {
                 asio::error_code ec_open, ec_v6only, ec_bind;
 
-                if (!ipv4Only) {
+                if (!mIpv4Only) {
                     asio::ip::udp::endpoint endpoint_v6(asio::ip::udp::v6(), port);
                 
                     // Try opening IPv6 socket
@@ -34,8 +36,8 @@ namespace ColumnLynx::Net::UDP {
                 }
 
                 // Fallback to IPv4 if IPv6 is unusable
-                if (ipv4Only || ec_open || ec_bind) {
-                    if (!ipv4Only) {
+                if (mIpv4Only || ec_open || ec_bind) {
+                    if (!mIpv4Only) {
                         Utils::warn(
                             "UDP: IPv6 unavailable (open=" + ec_open.message() +
                             ", bind=" + ec_bind.message() +
@@ -70,7 +72,7 @@ namespace ColumnLynx::Net::UDP {
             asio::ip::udp::socket mSocket;
             asio::ip::udp::endpoint mRemoteEndpoint;
             std::array<uint8_t, 2048> mRecvBuffer; // 2048 seems stable
-            std::shared_ptr<bool> mHostRunning;
-            std::shared_ptr<VirtualInterface> mTun;
+            bool mIpv4Only = ServerSession::getInstance().isIPv4Only();
+            const std::shared_ptr<VirtualInterface> mTun = ServerSession::getInstance().getVirtualInterface();
     };
 }

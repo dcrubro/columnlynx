@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <cxxopts.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
+#include <columnlynx/server/server_session.hpp>
 
 #if defined(__WIN32__)
 #include <windows.h>
@@ -69,6 +70,8 @@ int main(int argc, char** argv) {
         //WintunInitialize();
 #endif
 
+        struct ServerState serverState{};
+
         // Get the config path, ENV > CLI > /etc/columnlynx
         std::string configPath = optionsObj["config-dir"].as<std::string>();
         const char* envConfigPath = std::getenv("COLUMNLYNX_CONFIG_DIR");
@@ -84,10 +87,22 @@ int main(int argc, char** argv) {
             #endif
         }
 
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config");
+        serverState.configPath = configPath;
+
+#if defined(DEBUG)
+        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
+#else
+        // A production server should never use random keys. If the config file cannot be read or does not contain keys, the server will fail to start.
+        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK", "SERVER_PUBLIC_KEY", "SERVER_PRIVATE_KEY" });
+#endif
+
+        serverState.serverConfig = config;
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
+
+        // Store a reference to the tun in the serverState, it will increment and keep a safe reference (we love shared_ptrs)
+        serverState.virtualInterface = tun;
 
         // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
@@ -117,19 +132,24 @@ int main(int argc, char** argv) {
 
         log("Server public key: " + bytesToHexString(sodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES));
 
-        std::shared_ptr<bool> hostRunning = std::make_shared<bool>(true);
+        serverState.sodiumWrapper = sodiumWrapper;
+        serverState.ipv4Only = ipv4Only;
+        serverState.hostRunning = true;
+
+        // Store the global state; from now on, it should only be accessed through the ServerSession singleton, which will ensure thread safety with its internal mutex
+        ServerSession::getInstance().setServerState(std::make_shared<ServerState>(std::move(serverState)));
 
         asio::io_context io;
 
-        auto server = std::make_shared<TCPServer>(io, serverPort(), sodiumWrapper, hostRunning, configPath, ipv4Only);
-        auto udpServer = std::make_shared<UDPServer>(io, serverPort(), hostRunning, ipv4Only, tun);
+        auto server = std::make_shared<TCPServer>(io, serverPort());
+        auto udpServer = std::make_shared<UDPServer>(io, serverPort());
 
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
             log("Received termination signal. Shutting down server gracefully.");
             done = 1;
             asio::post(io, [&]() {
-                *hostRunning = false;
+                ServerSession::getInstance().setHostRunning(false);
                 server->stop();
                 udpServer->stop();
             });

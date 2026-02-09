@@ -16,11 +16,11 @@ namespace ColumnLynx::Net::UDP {
                 if (ec) {
                     if (ec == asio::error::operation_aborted) return; // Socket closed
                     // Other recv error
-                    if (mHostRunning && *mHostRunning) mStartReceive();
+                    if (ServerSession::getInstance().isHostRunning()) mStartReceive();
                     return;
                 }
                 if (bytes > 0) mHandlePacket(bytes);
-                if (mHostRunning && *mHostRunning) mStartReceive();
+                if (ServerSession::getInstance().isHostRunning()) mStartReceive();
             }
         );
     }
