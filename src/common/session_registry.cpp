@@ -60,6 +60,11 @@ namespace ColumnLynx::Net {
         return static_cast<int>(mSessions.size());
     }
 
+    bool SessionRegistry::exists(uint32_t sessionID) const {
+        std::shared_lock lock(mMutex);
+        return mSessions.find(sessionID) != mSessions.end();
+    }
+    
     uint32_t SessionRegistry::getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
         std::shared_lock lock(mMutex);
 

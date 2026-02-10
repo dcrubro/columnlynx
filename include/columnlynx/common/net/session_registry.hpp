@@ -78,6 +78,8 @@ namespace ColumnLynx::Net {
             // Get the number of registered sessions
             int size() const;
 
+            bool exists(uint32_t sessionID) const;
+
             // IP management
 
             // Get the lowest available IPv4 address; Returns 0 if none available

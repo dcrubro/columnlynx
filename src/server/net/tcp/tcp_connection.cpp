@@ -211,8 +211,10 @@ namespace ColumnLynx::Net::TCP {
 
                     std::memcpy(mConnectionAESKey.data(), decrypted.data(), decrypted.size());
 
-                    // Make a Session ID
-                    randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                    // Make a Session ID - unique and not zero (zero is reserved for invalid sessions)
+                    do {
+                        randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                    } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0); // Regenerate if it already exists or is zero (zero is reserved for invalid sessions)
 
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
