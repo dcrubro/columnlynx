@@ -17,6 +17,7 @@
 #include <string>
 #include <columnlynx/common/net/protocol_structs.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
+#include <columnlynx/client/client_session.hpp>
 
 using asio::ip::tcp;
 
@@ -25,28 +26,20 @@ namespace ColumnLynx::Net::TCP {
         public:
             TCPClient(asio::io_context& ioContext,
                       const std::string& host,
-                      const std::string& port,
-                      std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
-                      std::shared_ptr<std::array<uint8_t, 32>> aesKey,
-                      std::shared_ptr<uint64_t> sessionIDRef,
-                      bool insecureMode,
-                      std::string& configPath,
-                      std::shared_ptr<VirtualInterface> tun = nullptr)
+                      const std::string& port)
                 :
                 mResolver(ioContext),
                 mSocket(ioContext),
                 mHost(host),
                 mPort(port),
-                mLibSodiumWrapper(sodiumWrapper),
-                mGlobalKeyRef(aesKey),
-                mSessionIDRef(sessionIDRef),
-                mInsecureMode(insecureMode),
                 mHeartbeatTimer(mSocket.get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
-                mLastHeartbeatSent(std::chrono::steady_clock::now()),
-                mTun(tun),
-                mConfigDirPath(configPath)
+                mLastHeartbeatSent(std::chrono::steady_clock::now())
             {
+                // Get initial client config
+                std::string configPath = ClientSession::getInstance().getConfigPath();
+                std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper = ClientSession::getInstance().getSodiumWrapper();
+
                 // Preload the config map
                 mRawClientConfig = Utils::getConfigMap(configPath + "client_config");
 
@@ -104,20 +97,14 @@ namespace ColumnLynx::Net::TCP {
             std::string mHost, mPort;
             uint8_t mServerPublicKey[32]; // Assuming 256-bit public key
             std::array<uint8_t, 32> mSubmittedChallenge{};
-            std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper;
-            uint64_t mConnectionSessionID;
+            uint32_t mConnectionSessionID;
             SymmetricKey mConnectionAESKey;
-            std::shared_ptr<std::array<uint8_t, 32>> mGlobalKeyRef; // Reference to global AES key
-            std::shared_ptr<uint64_t> mSessionIDRef; // Reference to global Session ID
-            bool mInsecureMode; // Insecure mode flag
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
             bool mIsHostDomain;
             Protocol::TunConfig mTunConfig;
-            std::shared_ptr<VirtualInterface> mTun = nullptr;
             std::unordered_map<std::string, std::string> mRawClientConfig;
-            std::string mConfigDirPath;
     };
 }

@@ -66,7 +66,7 @@ namespace ColumnLynx::Net::TCP {
         Utils::log("Initiated graceful disconnect (half-close) to " + mRemoteIP);
     }
 
-    uint64_t TCPConnection::getSessionID() const {
+    uint32_t TCPConnection::getSessionID() const {
         return mConnectionSessionID;
     }
 
@@ -145,7 +145,7 @@ namespace ColumnLynx::Net::TCP {
                 
                 Utils::debug("Key attempted connect: " + Utils::bytesToHexString(signPk.data(), signPk.size()));
 
-                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(mConfigDirPath);
+                std::vector<std::string> whitelistedKeys = Utils::getWhitelistedKeys(ServerSession::getInstance().getConfigPath());
 
                 if (std::find(whitelistedKeys.begin(), whitelistedKeys.end(), Utils::bytesToHexString(signPk.data(), signPk.size())) == whitelistedKeys.end()) {
                     Utils::warn("Non-whitelisted client attempted to connect, terminating. Client IP: " + reqAddr);
@@ -156,7 +156,7 @@ namespace ColumnLynx::Net::TCP {
 
                 Utils::debug("Client " + reqAddr + " passed authorized_keys");
 
-                mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(mLibSodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
+                mHandler->sendMessage(ServerMessageType::HANDSHAKE_IDENTIFY, Utils::uint8ArrayToString(ServerSession::getInstance().getSodiumWrapper()->getPublicKey(), crypto_sign_PUBLICKEYBYTES)); // This public key should always exist
                 break;
             }
             case ClientMessageType::HANDSHAKE_CHALLENGE: {
@@ -169,7 +169,7 @@ namespace ColumnLynx::Net::TCP {
                 // Sign the challenge
                 Signature sig = Utils::LibSodiumWrapper::signMessage(
                     challengeData, sizeof(challengeData),
-                    mLibSodiumWrapper->getPrivateKey()
+                    ServerSession::getInstance().getSodiumWrapper()->getPrivateKey()
                 );
 
                 mHandler->sendMessage(ServerMessageType::HANDSHAKE_CHALLENGE_RESPONSE, Utils::uint8ArrayToString(sig.data(), sig.size())); // Placeholder response
@@ -191,8 +191,8 @@ namespace ColumnLynx::Net::TCP {
                 std::memcpy(ciphertext.data(), data.data() + nonce.size(), ciphertext.size());
                 try {
                     std::array<uint8_t, 32> arrayPrivateKey;
-                    std::copy(mLibSodiumWrapper->getXPrivateKey(),
-                              mLibSodiumWrapper->getXPrivateKey() + 32,
+                    std::copy(ServerSession::getInstance().getSodiumWrapper()->getXPrivateKey(),
+                              ServerSession::getInstance().getSodiumWrapper()->getXPrivateKey() + 32,
                               arrayPrivateKey.begin());
 
                     // Decrypt the AES key using the client's public key and server's private key
@@ -211,14 +211,18 @@ namespace ColumnLynx::Net::TCP {
 
                     std::memcpy(mConnectionAESKey.data(), decrypted.data(), decrypted.size());
 
-                    // Make a Session ID
-                    randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                    // Make a Session ID - unique and not zero (zero is reserved for invalid sessions)
+                    do {
+                        randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                    } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0); // Regenerate if it already exists or is zero (zero is reserved for invalid sessions)
 
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
-                    std::string networkString = mRawServerConfig->find("NETWORK")->second; // The load check guarantees that this value exists
-                    uint8_t configMask = std::stoi(mRawServerConfig->find("SUBNET_MASK")->second); // Same deal here
+                    const auto& serverConfig = ServerSession::getInstance().getRawServerConfig();
+
+                    std::string networkString = serverConfig.find("NETWORK")->second; // The load check guarantees that this value exists
+                    uint8_t configMask = std::stoi(serverConfig.find("SUBNET_MASK")->second); // Same deal here
 
                     uint32_t baseIP = Net::VirtualInterface::stringToIpv4(networkString);
 
@@ -245,11 +249,11 @@ namespace ColumnLynx::Net::TCP {
                     tunConfig.dns1 = htonl(0x08080808);    // 8.8.8.8
                     tunConfig.dns2 = 0;
 
-                    uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
+                    uint32_t sessionIDNet = htonl(mConnectionSessionID);
 
-                    std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
-                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint64_t));
-                    std::memcpy(payload.data() + sizeof(uint64_t), &tunConfig, sizeof(tunConfig));
+                    std::vector<uint8_t> payload(sizeof(uint32_t) + sizeof(tunConfig));
+                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint32_t));
+                    std::memcpy(payload.data() + sizeof(uint32_t), &tunConfig, sizeof(tunConfig));
 
                     std::vector<uint8_t> encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
                         payload.data(), payload.size(),
@@ -261,6 +265,7 @@ namespace ColumnLynx::Net::TCP {
                     // Add to session registry
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
+                    session->setBaseNonce(); // Set it
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 
