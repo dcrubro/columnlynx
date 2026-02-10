@@ -17,29 +17,23 @@
 #include <columnlynx/server/net/tcp/tcp_connection.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <columnlynx/common/net/protocol_structs.hpp>
+#include <columnlynx/server/server_session.hpp>
 
 namespace ColumnLynx::Net::TCP {
 
     class TCPServer {
         public:
             TCPServer(asio::io_context& ioContext,
-                      uint16_t port,
-                      std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
-                      std::shared_ptr<bool> hostRunning,
-                      std::string& configPath,
-                      bool ipv4Only = false)
+                      uint16_t port)
                 : mIoContext(ioContext),
-                  mAcceptor(ioContext),
-                  mSodiumWrapper(sodiumWrapper),
-                  mHostRunning(hostRunning),
-                  mConfigDirPath(configPath)
+                  mAcceptor(ioContext)
             {
                 // Preload the config map
-                mRawServerConfig = Utils::getConfigMap(configPath + "server_config", {"NETWORK", "SUBNET_MASK"});
-
                 asio::error_code ec_open, ec_v6only, ec_bind;
 
-                if (!ipv4Only) {
+                bool isIPv4Only = ServerSession::getInstance().isIPv4Only();
+
+                if (!isIPv4Only) {
                     // Try IPv6 (dual-stack if supported)
                     asio::ip::tcp::endpoint endpoint_v6(asio::ip::tcp::v6(), port);
                 
@@ -55,8 +49,8 @@ namespace ColumnLynx::Net::TCP {
                 }
                 
                 // If IPv6 bind failed OR IPv6 open failed OR forced IPv4-only
-                if (ipv4Only || ec_open || ec_bind) {
-                    if (!ipv4Only)
+                if (isIPv4Only || ec_open || ec_bind) {
+                    if (!isIPv4Only)
                         Utils::warn("TCP: IPv6 unavailable (open=" + ec_open.message() +
                                     ", bind=" + ec_bind.message() +
                                     "), falling back to IPv4 only");
@@ -84,10 +78,6 @@ namespace ColumnLynx::Net::TCP {
             asio::io_context &mIoContext;
             asio::ip::tcp::acceptor mAcceptor;
             std::unordered_set<TCPConnection::pointer> mClients;
-            std::shared_ptr<Utils::LibSodiumWrapper> mSodiumWrapper;
-            std::shared_ptr<bool> mHostRunning;
-            std::unordered_map<std::string, std::string> mRawServerConfig;
-            std::string mConfigDirPath;
     };
 
 }

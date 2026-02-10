@@ -18,6 +18,7 @@
 #include <columnlynx/common/net/session_registry.hpp>
 #include <columnlynx/common/net/protocol_structs.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
+#include <columnlynx/server/server_session.hpp>
 
 namespace ColumnLynx::Net::TCP {
     class TCPConnection : public std::enable_shared_from_this<TCPConnection> {
@@ -26,12 +27,9 @@ namespace ColumnLynx::Net::TCP {
 
             static pointer create(
                 asio::ip::tcp::socket socket,
-                std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper,
-                std::unordered_map<std::string, std::string>* serverConfig,
-                std::string configDirPath,
                 std::function<void(pointer)> onDisconnect)
             {
-                auto conn = pointer(new TCPConnection(std::move(socket), sodiumWrapper, serverConfig, configDirPath));
+                auto conn = pointer(new TCPConnection(std::move(socket)));
                 conn->mOnDisconnect = std::move(onDisconnect);
                 return conn;
             }
@@ -46,20 +44,17 @@ namespace ColumnLynx::Net::TCP {
             void disconnect(bool echo = true);
 
             // Get the assigned session ID
-            uint64_t getSessionID() const;
+            uint32_t getSessionID() const;
             // Get the assigned AES key; You should probably access this via the Session Registry instead
             std::array<uint8_t, 32> getAESKey() const;
         
         private:
-            TCPConnection(asio::ip::tcp::socket socket, std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper, std::unordered_map<std::string, std::string>* serverConfig, std::string configDirPath)
+            TCPConnection(asio::ip::tcp::socket socket)
                 :
                 mHandler(std::make_shared<MessageHandler>(std::move(socket))),
-                mLibSodiumWrapper(sodiumWrapper),
-                mRawServerConfig(serverConfig),
                 mHeartbeatTimer(mHandler->socket().get_executor()),
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
-                mLastHeartbeatSent(std::chrono::steady_clock::now()),
-                mConfigDirPath(configDirPath)
+                mLastHeartbeatSent(std::chrono::steady_clock::now())
             {}
 
             // Start the heartbeat routine
@@ -69,16 +64,13 @@ namespace ColumnLynx::Net::TCP {
 
             std::shared_ptr<MessageHandler> mHandler;
             std::function<void(std::shared_ptr<TCPConnection>)> mOnDisconnect;
-            std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper;
-            std::unordered_map<std::string, std::string>* mRawServerConfig;
             std::array<uint8_t, 32> mConnectionAESKey;
-            uint64_t mConnectionSessionID;
+            uint32_t mConnectionSessionID;
             AsymPublicKey mConnectionPublicKey;
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;
             std::chrono::steady_clock::time_point mLastHeartbeatSent;
             int mMissedHeartbeats = 0;
             std::string mRemoteIP; // Cached remote IP to avoid calling remote_endpoint() on closed sockets
-            std::string mConfigDirPath;
     };
 }
