@@ -44,7 +44,7 @@ namespace ColumnLynx::Net::TCP {
             void disconnect(bool echo = true);
 
             // Get the assigned session ID
-            uint64_t getSessionID() const;
+            uint32_t getSessionID() const;
             // Get the assigned AES key; You should probably access this via the Session Registry instead
             std::array<uint8_t, 32> getAESKey() const;
         
@@ -65,7 +65,7 @@ namespace ColumnLynx::Net::TCP {
             std::shared_ptr<MessageHandler> mHandler;
             std::function<void(std::shared_ptr<TCPConnection>)> mOnDisconnect;
             std::array<uint8_t, 32> mConnectionAESKey;
-            uint64_t mConnectionSessionID;
+            uint32_t mConnectionSessionID;
             AsymPublicKey mConnectionPublicKey;
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;

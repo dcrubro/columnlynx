@@ -17,7 +17,10 @@ namespace ColumnLynx {
         bool insecureMode;
         std::string configPath;
         std::shared_ptr<Net::VirtualInterface> virtualInterface;
-        uint64_t sessionID;
+        uint32_t sessionID;
+        uint64_t recv_cnt;
+        uint64_t send_cnt;
+        uint32_t noncePrefix;
 
         ~ClientState() { sodium_memzero(aesKey.data(), aesKey.size()); }
         ClientState(const ClientState&) = delete;
@@ -28,8 +31,8 @@ namespace ColumnLynx {
         explicit ClientState() = default;
 
         explicit ClientState(std::shared_ptr<Utils::LibSodiumWrapper> sodium, SymmetricKey& k, bool insecure,
-                             std::string& config, std::shared_ptr<Net::VirtualInterface> tun, uint64_t session)
-        : sodiumWrapper(sodium), aesKey(k), insecureMode(insecure), configPath(config), virtualInterface(tun), sessionID(session) {}
+                     std::string& config, std::shared_ptr<Net::VirtualInterface> tun, uint32_t session, uint64_t recv, uint64_t send)
+        : sodiumWrapper(sodium), aesKey(k), insecureMode(insecure), configPath(config), virtualInterface(tun), sessionID(session), recv_cnt(recv), send_cnt(send) {}
     };
     
     class ClientSession {
@@ -54,7 +57,21 @@ namespace ColumnLynx {
             // Get the virtual interface
             const std::shared_ptr<Net::VirtualInterface>& getVirtualInterface() const;
             // Get the session ID
-            uint64_t getSessionID() const;
+            uint32_t getSessionID() const;
+            uint64_t getRecvCount() const {
+                std::shared_lock lock(mMutex);
+                return mClientState->recv_cnt;
+            }
+
+            uint64_t getSendCount() const {
+                std::shared_lock lock(mMutex);
+                return mClientState->send_cnt;
+            }
+
+            uint32_t getNoncePrefix() const {
+                std::shared_lock lock(mMutex);
+                return mClientState->noncePrefix;
+            }
 
             // Setters
             void setSodiumWrapper(std::shared_ptr<Utils::LibSodiumWrapper> sodiumWrapper);
@@ -62,7 +79,21 @@ namespace ColumnLynx {
             void setInsecureMode(bool insecureMode);
             void setConfigPath(const std::string& configPath);
             void setVirtualInterface(std::shared_ptr<Net::VirtualInterface> virtualInterface);
-            void setSessionID(uint64_t sessionID);
+            void setSessionID(uint32_t sessionID);
+            void incrementRecvCount() {
+                std::unique_lock lock(mMutex);
+                mClientState->recv_cnt++;
+            }
+
+            void incrementSendCount() {
+                std::unique_lock lock(mMutex);
+                mClientState->send_cnt++;
+            }
+
+            void setNoncePrefix(uint32_t prefix) {
+                std::unique_lock lock(mMutex);
+                mClientState->noncePrefix = prefix;
+            }
 
         private:
             mutable std::shared_mutex mMutex;

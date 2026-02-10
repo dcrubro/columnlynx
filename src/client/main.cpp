@@ -104,6 +104,9 @@ int main(int argc, char** argv) {
         struct ClientState initialState{};
         initialState.configPath = configPath;
         initialState.insecureMode = insecureMode;
+        initialState.send_cnt = 0;
+        initialState.recv_cnt = 0;
+        randombytes_buf(&initialState.noncePrefix, sizeof(uint32_t)); // Randomize nonce prefix
 
         std::shared_ptr<VirtualInterface> tun = std::make_shared<VirtualInterface>(optionsObj["interface"].as<std::string>());
         log("Using virtual interface: " + tun->getName());
@@ -116,7 +119,7 @@ int main(int argc, char** argv) {
 
         std::array<uint8_t, 32> aesKey = std::array<uint8_t, 32>(); 
         aesKey.fill(0); // Defualt zeroed state until modified by handshake
-        uint64_t sessionID = 0;
+        uint32_t sessionID = 0;
         initialState.aesKey = aesKey;
         initialState.sessionID = sessionID;
 

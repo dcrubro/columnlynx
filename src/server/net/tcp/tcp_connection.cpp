@@ -66,7 +66,7 @@ namespace ColumnLynx::Net::TCP {
         Utils::log("Initiated graceful disconnect (half-close) to " + mRemoteIP);
     }
 
-    uint64_t TCPConnection::getSessionID() const {
+    uint32_t TCPConnection::getSessionID() const {
         return mConnectionSessionID;
     }
 
@@ -247,11 +247,11 @@ namespace ColumnLynx::Net::TCP {
                     tunConfig.dns1 = htonl(0x08080808);    // 8.8.8.8
                     tunConfig.dns2 = 0;
 
-                    uint64_t sessionIDNet = Utils::chtobe64(mConnectionSessionID);
+                    uint32_t sessionIDNet = htonl(mConnectionSessionID);
 
-                    std::vector<uint8_t> payload(sizeof(uint64_t) + sizeof(tunConfig));
-                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint64_t));
-                    std::memcpy(payload.data() + sizeof(uint64_t), &tunConfig, sizeof(tunConfig));
+                    std::vector<uint8_t> payload(sizeof(uint32_t) + sizeof(tunConfig));
+                    std::memcpy(payload.data(), &sessionIDNet, sizeof(uint32_t));
+                    std::memcpy(payload.data() + sizeof(uint32_t), &tunConfig, sizeof(tunConfig));
 
                     std::vector<uint8_t> encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
                         payload.data(), payload.size(),
@@ -263,6 +263,7 @@ namespace ColumnLynx::Net::TCP {
                     // Add to session registry
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
                     auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
+                    session->setBaseNonce(); // Set it
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);
 

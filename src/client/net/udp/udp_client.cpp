@@ -46,7 +46,12 @@ namespace ColumnLynx::Net::UDP {
 
     void UDPClient::sendMessage(const std::string& data) {
         UDPPacketHeader hdr{};
-        randombytes_buf(hdr.nonce.data(), hdr.nonce.size());
+        uint8_t nonce[12];
+        uint32_t prefix = ClientSession::getInstance().getNoncePrefix();
+        uint64_t sendCount = ClientSession::getInstance().getSendCount();
+        memcpy(nonce, &prefix, sizeof(uint32_t)); // Prefix nonce with client-specific random value
+        memcpy(nonce + sizeof(uint32_t), &sendCount, sizeof(uint64_t)); // Use send count as nonce suffix to ensure uniqueness
+        std::copy_n(nonce, 12, hdr.nonce.data());
 
         if (ClientSession::getInstance().getAESKey().empty() || ClientSession::getInstance().getSessionID() == 0) {
             Utils::error("UDP Client AES key or Session ID reference is null!");
@@ -62,7 +67,7 @@ namespace ColumnLynx::Net::UDP {
         );
 
         std::vector<uint8_t> packet;
-        packet.reserve(sizeof(UDPPacketHeader) + sizeof(uint64_t) + encryptedPayload.size());
+        packet.reserve(sizeof(UDPPacketHeader) + encryptedPayload.size());
         packet.insert(packet.end(), 
             reinterpret_cast<uint8_t*>(&hdr),
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
@@ -76,6 +81,8 @@ namespace ColumnLynx::Net::UDP {
 
         mSocket.send_to(asio::buffer(packet), mRemoteEndpoint);
         Utils::debug("Sent UDP packet of size " + std::to_string(packet.size()));
+
+        ClientSession::getInstance().incrementSendCount();
     }
 
     void UDPClient::stop() {

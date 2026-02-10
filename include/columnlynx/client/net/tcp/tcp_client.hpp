@@ -97,7 +97,7 @@ namespace ColumnLynx::Net::TCP {
             std::string mHost, mPort;
             uint8_t mServerPublicKey[32]; // Assuming 256-bit public key
             std::array<uint8_t, 32> mSubmittedChallenge{};
-            uint64_t mConnectionSessionID;
+            uint32_t mConnectionSessionID;
             SymmetricKey mConnectionAESKey;
             asio::steady_timer mHeartbeatTimer;
             std::chrono::steady_clock::time_point mLastHeartbeatReceived;

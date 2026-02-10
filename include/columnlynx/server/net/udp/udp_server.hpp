@@ -61,7 +61,7 @@ namespace ColumnLynx::Net::UDP {
             void stop();
 
             // Send UDP data to an endpoint; Fetched via the Session Registry
-            void sendData(const uint64_t sessionID, const std::string& data);
+            void sendData(uint32_t sessionID, const std::string& data);
 
         private:
             // Start receiving UDP data

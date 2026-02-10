@@ -213,6 +213,8 @@ ColumnLynx makes use of both **TCP** and **UDP**. **TCP** is used for the initia
 
 It operates on port **48042** for both TCP and UDP.
 
+Current protocol version is **2**.
+
 Generally, all transmission is done in **little-endian byte order**, since pretty much every single modern architecture uses it by default. The only exemption to this is the **transmission of IP addresses** (for the **Virtual Interface**), which is **big-endian**.
 
 ### Handshake Procedure
@@ -231,7 +233,7 @@ The Client now generates a random aesKey (32 bytes long)
 
 C: HANDSHAKE_EXCHANGE_KEY <aesKey Encrypted with Server Public Key>
 
-The Server now assigns a local 8 byte session ID in the Session Registry.
+The Server now assigns a local 4 byte session ID in the Session Registry.
 
 S: HANDSHAKE_EXCHANGE_KEY_CONFIRM <Assigned SessionID>
 ```
@@ -242,7 +244,7 @@ The **Client** and **Server** have now securely exchanged a symmetric **AES Key*
 
 Packet exchange and the general data tunneling is done via **Standard UDP** (*see the **UDP Packet** in **Data***).
 
-The **header** of the sent packet always includes a **random 12 byte nonce** used to obscure the **encrypted payload / data** and the **Session ID** assigned by the server to the client (8 bytes). This makes the header **20 bytes long**.
+The **header** of the sent packet always includes a **12 byte nonce** derived from a random **4 byte base nonce** and the **send count** to ensure a unique nonce, used to obscure the **encrypted payload / data** and the **Session ID** assigned by the server to the client (4 bytes). This makes the header **16 bytes long**.
 
 The **payload / data** of the sent packet is **always encrypted** using the exchanged **AES Key** and obscured using the **random nonce**.
 
@@ -298,7 +300,7 @@ The **Data** is generally just the **raw underlying packet** forwarded to the se
 | Type | Length | Name | Description |
 |:-----|:-------|:-----|:------------|
 | uint8_t | 12 bytes | **Header** - Nonce | Random nonce to obfuscate encrypted contents |
-| uint64_t | 8 bytes | **Header** - Session ID | The unique and random session identifier for the client |
+| uint32_t | 4 bytes | **Header** - Session ID | The unique and random session identifier for the client |
 | uint8_t | variable | Data | General data / payload |
 
 ## Misc.

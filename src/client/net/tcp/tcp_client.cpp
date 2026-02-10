@@ -244,7 +244,7 @@ namespace ColumnLynx::Net::TCP {
                     std::memcpy(&mConnectionSessionID, decrypted.data(), sizeof(mConnectionSessionID));
                     std::memcpy(&mTunConfig, decrypted.data() + sizeof(mConnectionSessionID), sizeof(Protocol::TunConfig));
 
-                    mConnectionSessionID = Utils::cbe64toh(mConnectionSessionID);
+                    mConnectionSessionID = ntohl(mConnectionSessionID);
 
                     Utils::log("Connection established with Session ID: " + std::to_string(mConnectionSessionID));
                 

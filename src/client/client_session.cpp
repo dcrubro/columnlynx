@@ -35,7 +35,7 @@ namespace ColumnLynx {
         return getClientState()->virtualInterface;
     }
 
-    uint64_t ClientSession::getSessionID() const {
+    uint32_t ClientSession::getSessionID() const {
         return getClientState()->sessionID;
     }
 
@@ -64,7 +64,7 @@ namespace ColumnLynx {
         mClientState->virtualInterface = virtualInterface;
     }
 
-    void ClientSession::setSessionID(uint64_t sessionID) {
+    void ClientSession::setSessionID(uint32_t sessionID) {
         std::unique_lock lock(mMutex);
         mClientState->sessionID = sessionID;
     }

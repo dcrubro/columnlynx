@@ -93,7 +93,7 @@ namespace ColumnLynx::Utils {
     }
 
     unsigned char protocolVersion() {
-        return 1;
+        return 2;
     }
 
     std::string bytesToHexString(const uint8_t* bytes, size_t length) {

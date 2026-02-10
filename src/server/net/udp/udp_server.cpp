@@ -26,16 +26,17 @@ namespace ColumnLynx::Net::UDP {
     }
 
     void UDPServer::mHandlePacket(std::size_t bytes) {
-        if (bytes < sizeof(UDPPacketHeader))
+        if (bytes < sizeof(UDPPacketHeader) + sizeof(uint32_t))
             return;
         
         const auto* hdr = reinterpret_cast<UDPPacketHeader*>(mRecvBuffer.data());
 
-        // Get plaintext session ID (assuming first 8 bytes after nonce (header))
-        uint64_t sessionID = 0;
-        std::memcpy(&sessionID, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint64_t));
+        // Get plaintext session ID (assuming first 4 bytes after nonce (header))
+        uint32_t sessionIDNet = 0;
+        std::memcpy(&sessionIDNet, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint32_t));
+        uint32_t sessionID = ntohl(sessionIDNet);
 
-        auto it = mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint64_t);
+        auto it = mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint32_t);
         std::vector<uint8_t> encryptedPayload(it, mRecvBuffer.begin() + bytes);
 
         // Get associated session state
@@ -54,7 +55,7 @@ namespace ColumnLynx::Net::UDP {
                 encryptedPayload.data(), encryptedPayload.size(),
                 session->aesKey,
                 hdr->nonce, "udp-data"
-                //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint64_t))
+                //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint32_t))
             );
 
             Utils::debug("Passed decryption");
@@ -76,7 +77,7 @@ namespace ColumnLynx::Net::UDP {
         }
     }
 
-    void UDPServer::sendData(const uint64_t sessionID, const std::string& data) {
+    void UDPServer::sendData(uint32_t sessionID, const std::string& data) {
         // Find the IPv4/IPv6 endpoint for the session
         std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
         if (!session) {
@@ -92,23 +93,29 @@ namespace ColumnLynx::Net::UDP {
 
         // Prepare packet
         UDPPacketHeader hdr{};
-        randombytes_buf(hdr.nonce.data(), hdr.nonce.size());
+        uint8_t nonce[12];
+        uint32_t prefix = session->noncePrefix;
+        uint64_t sendCount = const_cast<SessionState*>(session.get())->send_ctr.fetch_add(1, std::memory_order_relaxed);
+        memcpy(nonce, &prefix, sizeof(uint32_t)); // Prefix nonce
+        memcpy(nonce + sizeof(uint32_t), &sendCount, sizeof(uint64_t)); // Use send count as nonce suffix to ensure uniqueness
+        std::copy_n(nonce, 12, hdr.nonce.data());
 
         auto encryptedPayload = Utils::LibSodiumWrapper::encryptMessage(
             reinterpret_cast<const uint8_t*>(data.data()), data.size(),
             session->aesKey, hdr.nonce, "udp-data"
-            //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint64_t))
+            //std::string(reinterpret_cast<const char*>(&sessionID), sizeof(uint32_t))
         );
 
         std::vector<uint8_t> packet;
-        packet.reserve(sizeof(UDPPacketHeader) +  sizeof(uint64_t) + encryptedPayload.size());
+        packet.reserve(sizeof(UDPPacketHeader) + sizeof(uint32_t) + encryptedPayload.size());
         packet.insert(packet.end(), 
             reinterpret_cast<uint8_t*>(&hdr),
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
         );
+        uint32_t sessionIDNet = htonl(sessionID);
         packet.insert(packet.end(),
-            reinterpret_cast<const uint8_t*>(&sessionID),
-            reinterpret_cast<const uint8_t*>(&sessionID) + sizeof(sessionID)
+            reinterpret_cast<const uint8_t*>(&sessionIDNet),
+            reinterpret_cast<const uint8_t*>(&sessionIDNet) + sizeof(sessionIDNet)
         );
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 

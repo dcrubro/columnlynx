@@ -5,13 +5,13 @@
 #include <columnlynx/common/net/session_registry.hpp>
 
 namespace ColumnLynx::Net {
-    void SessionRegistry::put(uint64_t sessionID, std::shared_ptr<SessionState> state) {
+    void SessionRegistry::put(uint32_t sessionID, std::shared_ptr<SessionState> state) {
         std::unique_lock lock(mMutex);
         mSessions[sessionID] = std::move(state);
         mIPSessions[mSessions[sessionID]->clientTunIP] = mSessions[sessionID];
     }
 
-    std::shared_ptr<const SessionState> SessionRegistry::get(uint64_t sessionID) const {
+    std::shared_ptr<const SessionState> SessionRegistry::get(uint32_t sessionID) const {
         std::shared_lock lock(mMutex);
         auto it = mSessions.find(sessionID);
         return (it == mSessions.end()) ? nullptr : it->second;
@@ -23,14 +23,14 @@ namespace ColumnLynx::Net {
         return (it == mIPSessions.end()) ? nullptr : it->second;
     }
 
-    std::unordered_map<uint64_t, std::shared_ptr<SessionState>> SessionRegistry::snapshot() const {
-        std::unordered_map<uint64_t, std::shared_ptr<SessionState>> snap;
+    std::unordered_map<uint32_t, std::shared_ptr<SessionState>> SessionRegistry::snapshot() const {
+        std::unordered_map<uint32_t, std::shared_ptr<SessionState>> snap;
         std::shared_lock lock(mMutex);
         snap = mSessions;
         return snap;
     }
 
-    void SessionRegistry::erase(uint64_t sessionID) {
+    void SessionRegistry::erase(uint32_t sessionID) {
         std::unique_lock lock(mMutex);
         mSessions.erase(sessionID);
     }
@@ -77,7 +77,7 @@ namespace ColumnLynx::Net {
         return 0;
     }
 
-    void SessionRegistry::lockIP(uint64_t sessionID, uint32_t ip) {
+    void SessionRegistry::lockIP(uint32_t sessionID, uint32_t ip) {
         std::unique_lock lock(mMutex);
         mSessionIPs[sessionID] = ip;
         
@@ -87,7 +87,7 @@ namespace ColumnLynx::Net {
         mIPSessions[ip] = mSessions.find(sessionID)->second;
     }
 
-    void SessionRegistry::deallocIP(uint64_t sessionID) {
+    void SessionRegistry::deallocIP(uint32_t sessionID) {
         std::unique_lock lock(mMutex);
     
         auto it = mSessionIPs.find(sessionID);
