@@ -72,10 +72,11 @@ namespace ColumnLynx::Net::UDP {
             reinterpret_cast<uint8_t*>(&hdr),
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
         );
-        uint64_t sessionID = ClientSession::getInstance().getSessionID();
+        uint32_t sessionID = static_cast<uint32_t>(ClientSession::getInstance().getSessionID());
+        uint32_t sessionIDNet = sessionID;
         packet.insert(packet.end(),
-            reinterpret_cast<uint8_t*>(&sessionID),
-            reinterpret_cast<uint8_t*>(&sessionID) + sizeof(uint64_t)
+            reinterpret_cast<uint8_t*>(&sessionIDNet),
+            reinterpret_cast<uint8_t*>(&sessionIDNet) + sizeof(uint32_t)
         );
         packet.insert(packet.end(), encryptedPayload.begin(), encryptedPayload.end());
 
@@ -115,7 +116,7 @@ namespace ColumnLynx::Net::UDP {
     }
 
     void UDPClient::mHandlePacket(std::size_t bytes) {
-        if (bytes < sizeof(UDPPacketHeader) + sizeof(uint64_t)) {
+        if (bytes < sizeof(UDPPacketHeader) + sizeof(uint32_t)) {
             Utils::warn("UDP Client received packet too small to process.");
             return;
         }
@@ -125,8 +126,9 @@ namespace ColumnLynx::Net::UDP {
         std::memcpy(&hdr, mRecvBuffer.data(), sizeof(UDPPacketHeader));
 
         // Parse session ID
-        uint64_t sessionID;
-        std::memcpy(&sessionID, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint64_t));
+        uint32_t sessionIDNet;
+        std::memcpy(&sessionIDNet, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint32_t));
+        uint32_t sessionID = ntohl(sessionIDNet);
 
         if (sessionID != ClientSession::getInstance().getSessionID()) {
             Utils::warn("This packet that isn't for me! Dropping!");
@@ -135,7 +137,7 @@ namespace ColumnLynx::Net::UDP {
 
         // Decrypt payload
         std::vector<uint8_t> ciphertext(
-            mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint64_t),
+            mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint32_t),
             mRecvBuffer.begin() + bytes
         );
 

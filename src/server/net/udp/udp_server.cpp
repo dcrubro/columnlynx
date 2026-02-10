@@ -31,10 +31,10 @@ namespace ColumnLynx::Net::UDP {
         
         const auto* hdr = reinterpret_cast<UDPPacketHeader*>(mRecvBuffer.data());
 
-        // Get plaintext session ID (assuming first 4 bytes after nonce (header))
+        // Get plaintext session ID (first 4 bytes after header, in network byte order)
         uint32_t sessionIDNet = 0;
         std::memcpy(&sessionIDNet, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint32_t));
-        uint32_t sessionID = ntohl(sessionIDNet);
+        uint32_t sessionID = sessionIDNet; // ntohl(sessionIDNet); --- IGNORE ---
 
         auto it = mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint32_t);
         std::vector<uint8_t> encryptedPayload(it, mRecvBuffer.begin() + bytes);
