@@ -46,6 +46,7 @@ namespace ColumnLynx::Net::TCP {
                                 std::vector<uint8_t> payload;
                                 payload.reserve(1 + crypto_box_PUBLICKEYBYTES);
                                 payload.push_back(Utils::protocolVersion());
+                                Utils::log("Using protocol version: " + std::to_string(Utils::protocolVersion()));
                                 /*payload.insert(payload.end(),
                                     mLibSodiumWrapper->getXPublicKey(),
                                     mLibSodiumWrapper->getXPublicKey() + crypto_box_PUBLICKEYBYTES
