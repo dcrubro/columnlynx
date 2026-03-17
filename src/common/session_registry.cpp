@@ -85,11 +85,15 @@ namespace ColumnLynx::Net {
     void SessionRegistry::lockIP(uint32_t sessionID, uint32_t ip) {
         std::unique_lock lock(mMutex);
         mSessionIPs[sessionID] = ip;
-        
-        /*if (mIPSessions.find(sessionID) == mIPSessions.end()) {
-            Utils::debug("yikes");
-        }*/
-        mIPSessions[ip] = mSessions.find(sessionID)->second;
+
+        auto it = mSessions.find(sessionID);
+        if (it == mSessions.end() || !it->second) {
+            Utils::warn("SessionRegistry::lockIP called for unknown session " + std::to_string(sessionID));
+            mSessionIPs.erase(sessionID);
+            return;
+        }
+
+        mIPSessions[ip] = it->second;
     }
 
     void SessionRegistry::deallocIP(uint32_t sessionID) {

@@ -14,23 +14,31 @@ namespace ColumnLynx::Net::TCP {
             Utils::warn("Failed to get remote endpoint: " + std::string(e.what()));
         }
 
-        mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
-            mHandleMessage(static_cast<ClientMessageType>(MessageHandler::toUint8(type)), data);
+        mHandler->onMessage([weakSelf = weak_from_this()](AnyMessageType type, const std::string& data) {
+            if (auto self = weakSelf.lock()) {
+                self->mHandleMessage(static_cast<ClientMessageType>(MessageHandler::toUint8(type)), data);
+            }
         });
 
-        mHandler->onDisconnect([this](const asio::error_code& ec) {
+        mHandler->onDisconnect([weakSelf = weak_from_this()](const asio::error_code& ec) {
+            auto self = weakSelf.lock();
+            if (!self) {
+                return;
+            }
             // Peer has closed; finalize locally without sending RST
-            Utils::log("Client disconnected: " + mRemoteIP + " - " + ec.message());
+            Utils::log("Client disconnected: " + self->mRemoteIP + " - " + ec.message());
             asio::error_code ec2;
-            mHandler->socket().close(ec2);
+            if (self->mHandler) {
+                self->mHandler->socket().close(ec2);
+            }
 
-            SessionRegistry::getInstance().erase(mConnectionSessionID);
-            SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
+            SessionRegistry::getInstance().erase(self->mConnectionSessionID);
+            SessionRegistry::getInstance().deallocIP(self->mConnectionSessionID);
 
-            Utils::log("Closed connection to " + mRemoteIP);
+            Utils::log("Closed connection to " + self->mRemoteIP);
 
-            if (mOnDisconnect) {
-                mOnDisconnect(shared_from_this());
+            if (self->mOnDisconnect) {
+                self->mOnDisconnect(self);
             }
         });
 
@@ -77,7 +85,7 @@ namespace ColumnLynx::Net::TCP {
     void TCPConnection::mStartHeartbeat() {
         auto self = shared_from_this();
         mHeartbeatTimer.expires_after(std::chrono::seconds(5));
-        mHeartbeatTimer.async_wait([this, self](const asio::error_code& ec) {
+        mHeartbeatTimer.async_wait([self](const asio::error_code& ec) {
             if (ec == asio::error::operation_aborted) {
                 return; // Timer was cancelled
             }
@@ -90,10 +98,13 @@ namespace ColumnLynx::Net::TCP {
                 
                 // Remove socket forcefully, client is dead
                 asio::error_code ec;
-                mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-                mHandler->socket().close(ec);
+                if (self->mHandler) {
+                    self->mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+                    self->mHandler->socket().close(ec);
+                }
 
                 SessionRegistry::getInstance().erase(self->mConnectionSessionID);
+                SessionRegistry::getInstance().deallocIP(self->mConnectionSessionID);
 
                 return;
             }

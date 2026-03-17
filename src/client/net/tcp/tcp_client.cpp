@@ -14,19 +14,25 @@ namespace ColumnLynx::Net::TCP {
                     asio::async_connect(mSocket, endpoints,
                         [this, self](asio::error_code ec, const tcp::endpoint&) {
                             if (!ec) {
-                                mConnected = true;
+                                mConnected.store(true, std::memory_order_relaxed);
                                 Utils::log("Client connected.");
                                 mHandler = std::make_shared<MessageHandler>(std::move(mSocket));
-                                mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
-                                    mHandleMessage(static_cast<ServerMessageType>(MessageHandler::toUint8(type)), data);
+                                mHandler->onMessage([weakSelf = weak_from_this()](AnyMessageType type, const std::string& data) {
+                                    if (auto self = weakSelf.lock()) {
+                                        self->mHandleMessage(static_cast<ServerMessageType>(MessageHandler::toUint8(type)), data);
+                                    }
                                 });
                                 // Close only after peer FIN to avoid RSTs
-                                mHandler->onDisconnect([this](const asio::error_code& ec) {
-                                    asio::error_code ec2;
-                                    if (mHandler) {
-                                        mHandler->socket().close(ec2);
+                                mHandler->onDisconnect([weakSelf = weak_from_this()](const asio::error_code& ec) {
+                                    auto self = weakSelf.lock();
+                                    if (!self) {
+                                        return;
                                     }
-                                    mConnected = false;
+                                    asio::error_code ec2;
+                                    if (self->mHandler) {
+                                        self->mHandler->socket().close(ec2);
+                                    }
+                                    self->mConnected.store(false, std::memory_order_relaxed);
                                     Utils::log(std::string("Server disconnected: ") + ec.message());
                                 });
                                 mHandler->start();
@@ -74,7 +80,7 @@ namespace ColumnLynx::Net::TCP {
     }
 
     void TCPClient::sendMessage(ClientMessageType type, const std::string& data) {
-        if (!mConnected) {
+        if (!mConnected.load(std::memory_order_relaxed)) {
             Utils::error("Cannot send message, client not connected.");
             return;
         }
@@ -87,7 +93,7 @@ namespace ColumnLynx::Net::TCP {
     }
 
     void TCPClient::disconnect(bool echo) {
-        if (mConnected && mHandler) {
+        if (mConnected.load(std::memory_order_relaxed) && mHandler) {
             if (echo) {
                 mHandler->sendMessage(ClientMessageType::GRACEFUL_DISCONNECT, "Goodbye");
             }
@@ -107,17 +113,17 @@ namespace ColumnLynx::Net::TCP {
     }
 
     bool TCPClient::isHandshakeComplete() const {
-        return mHandshakeComplete;
+        return mHandshakeComplete.load(std::memory_order_relaxed);
     }
 
     bool TCPClient::isConnected() const {
-        return mConnected;
+        return mConnected.load(std::memory_order_relaxed);
     }
 
     void TCPClient::mStartHeartbeat() {
         auto self = shared_from_this();
         mHeartbeatTimer.expires_after(std::chrono::seconds(5));
-        mHeartbeatTimer.async_wait([this, self](const asio::error_code& ec) {
+        mHeartbeatTimer.async_wait([self](const asio::error_code& ec) {
             if (ec == asio::error::operation_aborted) {
                 return; // Timer was cancelled
             }
@@ -130,9 +136,11 @@ namespace ColumnLynx::Net::TCP {
                 
                 // Close sockets forcefully, server is dead
                 asio::error_code ec;
-                mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
-                mHandler->socket().close(ec);
-                mConnected = false;
+                if (self->mHandler) {
+                    self->mHandler->socket().shutdown(tcp::socket::shutdown_both, ec);
+                    self->mHandler->socket().close(ec);
+                }
+                self->mConnected.store(false, std::memory_order_relaxed);
                 
                 ClientSession::getInstance().setAESKey({}); // Clear AES key with all zeros
                 ClientSession::getInstance().setSessionID(0);
@@ -261,7 +269,7 @@ namespace ColumnLynx::Net::TCP {
                         mTun->configureIP(clientIP, serverIP, prefixLen, mtu);
                     }
 
-                    mHandshakeComplete = true;
+                    mHandshakeComplete.store(true, std::memory_order_relaxed);
                 }
             
                 break;
@@ -276,13 +284,13 @@ namespace ColumnLynx::Net::TCP {
                 break;
             case ServerMessageType::GRACEFUL_DISCONNECT:
                 Utils::log("Server is disconnecting: " + data);
-                if (mConnected) { // Prevent Recursion
+                if (mConnected.load(std::memory_order_relaxed)) { // Prevent Recursion
                     disconnect(false);
                 }
                 break;
             case ServerMessageType::KILL_CONNECTION:
                 Utils::warn("Server is killing the connection: " + data);
-                if (mConnected) {
+                if (mConnected.load(std::memory_order_relaxed)) {
                     disconnect(false);
                 }
                 break;

@@ -5,6 +5,7 @@
 #include <columnlynx/common/net/tcp/tcp_message_handler.hpp>
 #include <columnlynx/common/net/tcp/net_helper.hpp>
 #include <columnlynx/common/utils.hpp>
+#include <memory>
 
 namespace ColumnLynx::Net::TCP {
     void MessageHandler::start() {
@@ -17,17 +18,17 @@ namespace ColumnLynx::Net::TCP {
             return static_cast<uint8_t>(type);
         }, type);
 
-        std::vector<uint8_t> data;
-        data.push_back(typeByte);
+        auto data = std::make_shared<std::vector<uint8_t>>();
+        data->push_back(typeByte);
         uint16_t length = payload.size();
 
-        data.push_back(length >> 8);
-        data.push_back(length & 0xFF);
+        data->push_back(length >> 8);
+        data->push_back(length & 0xFF);
 
-        data.insert(data.end(), payload.begin(), payload.end());
+        data->insert(data->end(), payload.begin(), payload.end());
         auto self = shared_from_this();
-        asio::async_write(mSocket, asio::buffer(data),
-            [self](asio::error_code ec, std::size_t) {
+        asio::async_write(mSocket, asio::buffer(*data),
+            [self, data](asio::error_code ec, std::size_t) {
                 if (ec) {
                     Utils::error("Send failed: " + ec.message());
                 }

@@ -11,6 +11,7 @@
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/libsodium_wrapper.hpp>
 #include <array>
+#include <atomic>
 #include <algorithm>
 #include <vector>
 #include <unordered_map>
@@ -89,8 +90,8 @@ namespace ColumnLynx::Net::TCP {
 
             // TODO: Move ptrs to smart ptrs
 
-            bool mConnected = false;
-            bool mHandshakeComplete = false;
+            std::atomic<bool> mConnected{false};
+            std::atomic<bool> mHandshakeComplete{false};
             tcp::resolver mResolver;
             tcp::socket mSocket;
             std::shared_ptr<MessageHandler> mHandler;

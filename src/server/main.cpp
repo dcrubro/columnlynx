@@ -6,6 +6,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cstring>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
@@ -172,9 +173,24 @@ int main(int argc, char** argv) {
                 continue;
             }
 
+            if (packet.size() < 20) {
+                Utils::warn("TUN: Dropping packet smaller than IPv4 header (" + std::to_string(packet.size()) + " bytes)");
+                continue;
+            }
+
             const uint8_t* ip = packet.data();
-            uint32_t srcIP = ntohl(*(uint32_t*)(ip + 12)); // IPv4 source address offset
-            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset
+            uint8_t ipVersion = (ip[0] >> 4);
+            if (ipVersion != 4) {
+                Utils::debug("TUN: Non-IPv4 packet received (version=" + std::to_string(ipVersion) + "), skipping server IPv4 routing path.");
+                continue;
+            }
+
+            uint32_t srcIPNet = 0;
+            uint32_t dstIPNet = 0;
+            std::memcpy(&srcIPNet, ip + 12, sizeof(srcIPNet)); // IPv4 source address offset
+            std::memcpy(&dstIPNet, ip + 16, sizeof(dstIPNet)); // IPv4 destination address offset
+            uint32_t srcIP = ntohl(srcIPNet);
+            uint32_t dstIP = ntohl(dstIPNet);
         
             // First, check if destination IP is a registered client (e.g., server responding to client or client-to-client)
             auto dstSession = SessionRegistry::getInstance().getByIP(dstIP);
