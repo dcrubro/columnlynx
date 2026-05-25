@@ -5,6 +5,7 @@
 #include <asio.hpp>
 #include <csignal>
 #include <iostream>
+#include <filesystem>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
@@ -90,7 +91,20 @@ int main(int argc, char** argv) {
         std::string configPath = optionsObj["config-dir"].as<std::string>();
         const char* envConfigPath = std::getenv("COLUMNLYNX_CONFIG_DIR");
         if (envConfigPath != nullptr) {
-            configPath = std::string(envConfigPath);
+            // Validate and canonicalize environment-provided path
+            try {
+                namespace fs = std::filesystem;
+                std::error_code ec;
+                fs::path candidate(envConfigPath);
+                fs::path abs = fs::absolute(candidate, ec);
+                if (!ec) {
+                    configPath = abs.string();
+                } else {
+                    warn(std::string("Invalid COLUMNLYNX_CONFIG_DIR value: ") + envConfigPath + " - using default");
+                }
+            } catch (const std::exception& e) {
+                warn(std::string("Failed to canonicalize COLUMNLYNX_CONFIG_DIR: ") + e.what());
+            }
         }
 
         if (configPath.back() != '/' && configPath.back() != '\\') {

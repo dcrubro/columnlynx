@@ -73,7 +73,7 @@ namespace ColumnLynx::Net::UDP {
             reinterpret_cast<uint8_t*>(&hdr) + sizeof(UDPPacketHeader)
         );
         uint32_t sessionID = static_cast<uint32_t>(ClientSession::getInstance().getSessionID());
-        uint32_t sessionIDNet = sessionID;
+        uint32_t sessionIDNet = htonl(sessionID);
         packet.insert(packet.end(),
             reinterpret_cast<uint8_t*>(&sessionIDNet),
             reinterpret_cast<uint8_t*>(&sessionIDNet) + sizeof(uint32_t)
@@ -136,9 +136,24 @@ namespace ColumnLynx::Net::UDP {
         }
 
         // Decrypt payload
+        // Extract ciphertext safely
+        size_t headerLen = sizeof(UDPPacketHeader) + sizeof(uint32_t);
+        if (bytes < headerLen) {
+            Utils::warn("UDP Client received packet too small after header check.");
+            return;
+        }
+
+        size_t ciphertextLen = bytes - headerLen;
+        // Enforce reasonable maximum (UDP payload practical limit)
+        const size_t MAX_UDP_PAYLOAD = 65507; // 65535 - UDP/IP headers
+        if (ciphertextLen > MAX_UDP_PAYLOAD) {
+            Utils::warn("UDP Client received packet with excessive payload size: " + std::to_string(ciphertextLen));
+            return;
+        }
+
         std::vector<uint8_t> ciphertext(
-            mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint32_t),
-            mRecvBuffer.begin() + bytes
+            mRecvBuffer.begin() + headerLen,
+            mRecvBuffer.begin() + headerLen + ciphertextLen
         );
 
         if (ClientSession::getInstance().getAESKey().empty()) {

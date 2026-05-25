@@ -3,6 +3,7 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/common/utils.hpp>
+#include <filesystem>
 
 namespace ColumnLynx::Utils {
     std::string unixMillisToISO8601(uint64_t unixMillis, bool local) {
@@ -144,19 +145,49 @@ namespace ColumnLynx::Utils {
 
         std::vector<std::string> out;
 
-        std::ifstream file(basePath + "whitelisted_keys");
+        namespace fs = std::filesystem;
+        std::error_code ec;
+
+        fs::path base(basePath);
+        fs::path absBase = fs::absolute(base, ec);
+        if (ec) {
+            warn("getWhitelistedKeys(): failed to resolve base path: " + basePath + " - " + ec.message());
+            return out;
+        }
+
+        fs::path whitelist = absBase / "whitelisted_keys";
+        if (!fs::exists(whitelist, ec) || ec) {
+            warn("getWhitelistedKeys(): whitelist file not found: " + whitelist.string());
+            return out;
+        }
+
+        // Canonicalize to avoid symlink tricks
+        fs::path canon = fs::canonical(whitelist, ec);
+        if (ec) {
+            warn("getWhitelistedKeys(): failed to canonicalize path: " + whitelist.string());
+            return out;
+        }
+
+        std::ifstream file(canon);
         if (!file.is_open()) {
-            warn("Failed to open whitelisted_keys file at path: " + basePath + "whitelisted_keys");
+            warn("getWhitelistedKeys(): failed to open whitelist file: " + canon.string());
             return out;
         }
 
         std::string line;
         while (std::getline(file, line)) {
+            // Trim whitespace
+            while (!line.empty() && isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+            size_t start = 0;
+            while (start < line.size() && isspace(static_cast<unsigned char>(line[start]))) ++start;
+            if (start >= line.size()) continue;
+            std::string key = line.substr(start);
+
             // Convert to upper case to align with the bytesToHexString() output
-            for (int i = 0; i < line.length(); i++) {
-                line[i] = toupper(line[i]);
+            for (size_t i = 0; i < key.length(); ++i) {
+                key[i] = static_cast<char>(toupper(static_cast<unsigned char>(key[i])));
             }
-            out.push_back(line);
+            out.push_back(key);
         }
 
         return out;
@@ -166,9 +197,26 @@ namespace ColumnLynx::Utils {
         // TODO: Currently re-reads every time.
         std::vector<std::string> readLines;
 
-        std::ifstream file(path);
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        fs::path p(path);
+        fs::path abs = fs::absolute(p, ec);
+        if (ec) {
+            throw std::runtime_error("getConfigMap(): failed to resolve path: " + path + " - " + ec.message());
+        }
+
+        if (!fs::exists(abs, ec) || ec) {
+            throw std::runtime_error("getConfigMap(): config file does not exist: " + abs.string());
+        }
+
+        fs::path canon = fs::canonical(abs, ec);
+        if (ec) {
+            throw std::runtime_error("getConfigMap(): failed to canonicalize config path: " + abs.string());
+        }
+
+        std::ifstream file(canon);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open config file at path: " + path);
+            throw std::runtime_error("Failed to open config file at path: " + canon.string());
         }
 
         std::string line;

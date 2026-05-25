@@ -32,7 +32,26 @@ namespace ColumnLynx::Net {
 
     void SessionRegistry::erase(uint32_t sessionID) {
         std::unique_lock lock(mMutex);
-        mSessions.erase(sessionID);
+        auto it = mSessions.find(sessionID);
+        if (it != mSessions.end()) {
+            // If the session has a client IP mapping, remove it to avoid stale entries
+            if (it->second) {
+                uint32_t ip = it->second->clientTunIP;
+                auto ipIt = mIPSessions.find(ip);
+                if (ipIt != mIPSessions.end()) {
+                    // Only erase if it points to the same session
+                    if (ipIt->second == it->second) {
+                        mIPSessions.erase(ipIt);
+                    }
+                }
+            }
+
+            // Remove any session->ip bookkeeping
+            mSessionIPs.erase(sessionID);
+
+            // Finally erase the session
+            mSessions.erase(it);
+        }
     }
 
     void SessionRegistry::cleanupExpired() {

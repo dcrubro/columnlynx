@@ -159,7 +159,13 @@ namespace ColumnLynx::Net::TCP {
     void TCPClient::mHandleMessage(ServerMessageType type, const std::string& data) {
         switch (type) {
             case ServerMessageType::HANDSHAKE_IDENTIFY: {
-                    std::memcpy(mServerPublicKey, data.data(), std::min(data.size(), sizeof(mServerPublicKey)));
+                    if (data.size() != sizeof(mServerPublicKey)) {
+                        Utils::warn("HANDSHAKE_IDENTIFY has invalid size: " + std::to_string(data.size()));
+                        disconnect();
+                        return;
+                    }
+
+                    std::memcpy(mServerPublicKey, data.data(), sizeof(mServerPublicKey));
                     std::string hexServerPub = Utils::bytesToHexString(mServerPublicKey, 32);
                     Utils::log("Received server identity. Public Key: " + hexServerPub);
 
@@ -188,7 +194,13 @@ namespace ColumnLynx::Net::TCP {
                 {
                     // Verify the signature
                     Signature sig{};
-                    std::memcpy(sig.data(), data.data(), std::min(data.size(), sig.size()));
+                    if (data.size() != sig.size()) {
+                        Utils::warn("HANDSHAKE_CHALLENGE_RESPONSE has invalid size: " + std::to_string(data.size()));
+                        disconnect();
+                        return;
+                    }
+
+                    std::memcpy(sig.data(), data.data(), sig.size());
                     if (Utils::LibSodiumWrapper::verifyMessage(mSubmittedChallenge.data(), mSubmittedChallenge.size(), sig, mServerPublicKey)) {
                         Utils::log("Challenge response verified successfully.");
                         

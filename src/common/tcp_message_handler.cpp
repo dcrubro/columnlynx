@@ -20,10 +20,16 @@ namespace ColumnLynx::Net::TCP {
 
         auto data = std::make_shared<std::vector<uint8_t>>();
         data->push_back(typeByte);
-        uint16_t length = payload.size();
+        // Ensure payload fits into protocol's 16-bit length field
+        if (payload.size() > static_cast<size_t>(std::numeric_limits<uint16_t>::max())) {
+            Utils::error("sendMessage(): payload too large (>65535 bytes)");
+            return;
+        }
 
-        data->push_back(length >> 8);
-        data->push_back(length & 0xFF);
+        uint16_t length = static_cast<uint16_t>(payload.size());
+
+        data->push_back(static_cast<uint8_t>(length >> 8));
+        data->push_back(static_cast<uint8_t>(length & 0xFF));
 
         data->insert(data->end(), payload.begin(), payload.end());
         auto self = shared_from_this();

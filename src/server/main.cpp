@@ -145,6 +145,22 @@ int main(int argc, char** argv) {
         auto server = std::make_shared<TCPServer>(io, serverPort());
         auto udpServer = std::make_shared<UDPServer>(io, serverPort());
 
+        // Schedule periodic cleanup of expired sessions every 5 minutes
+        auto cleanupTimer = std::make_shared<asio::steady_timer>(io);
+        auto cleanupHandler = std::make_shared<std::function<void(const asio::error_code&)>>();
+        *cleanupHandler = [cleanupTimer, cleanupHandler](const asio::error_code& ec) {
+            if (ec == asio::error::operation_aborted) return; // Timer cancelled
+            try {
+                SessionRegistry::getInstance().cleanupExpired();
+            } catch (const std::exception& e) {
+                Utils::warn(std::string("SessionRegistry::cleanupExpired() threw: ") + e.what());
+            }
+            cleanupTimer->expires_after(std::chrono::minutes(5));
+            cleanupTimer->async_wait(*cleanupHandler);
+        };
+        cleanupTimer->expires_after(std::chrono::minutes(5));
+        cleanupTimer->async_wait(*cleanupHandler);
+
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
             log("Received termination signal. Shutting down server gracefully.");
@@ -153,6 +169,8 @@ int main(int argc, char** argv) {
                 ServerSession::getInstance().setHostRunning(false);
                 server->stop();
                 udpServer->stop();
+                // Cancel cleanup timer
+                cleanupTimer->cancel();
             });
         });
 

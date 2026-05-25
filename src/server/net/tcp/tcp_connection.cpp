@@ -124,8 +124,8 @@ namespace ColumnLynx::Net::TCP {
             case ClientMessageType::HANDSHAKE_INIT: {
                 Utils::log("Received HANDSHAKE_INIT from " + reqAddr);
 
-                if (data.size() < 1 + crypto_box_PUBLICKEYBYTES) {
-                    Utils::warn("HANDSHAKE_INIT from " + reqAddr + " is too short.");
+                if (data.size() != 1 + crypto_sign_PUBLICKEYBYTES) {
+                    Utils::warn("HANDSHAKE_INIT from " + reqAddr + " has invalid size: " + std::to_string(data.size()));
                     disconnect();
                     return;
                 }
@@ -141,7 +141,7 @@ namespace ColumnLynx::Net::TCP {
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
                 PublicKey signPk;
-                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk)));
+                std::memcpy(signPk.data(), data.data() + 1, sizeof(signPk));
 
                 // We can safely store this without further checking, the client will need to send the encrypted AES key in a way where they must possess the corresponding private key anyways.
                 int r = crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
@@ -173,9 +173,15 @@ namespace ColumnLynx::Net::TCP {
             case ClientMessageType::HANDSHAKE_CHALLENGE: {
                 Utils::log("Received HANDSHAKE_CHALLENGE from " + reqAddr);
                 
-                // Convert to byte array
+                // Convert to byte array - require exact size
+                if (data.size() != 32) {
+                    Utils::warn("HANDSHAKE_CHALLENGE has invalid size: " + std::to_string(data.size()));
+                    disconnect();
+                    return;
+                }
+
                 uint8_t challengeData[32];
-                std::memcpy(challengeData, data.data(), std::min(data.size(), sizeof(challengeData)));
+                std::memcpy(challengeData, data.data(), sizeof(challengeData));
 
                 // Sign the challenge
                 Signature sig = Utils::LibSodiumWrapper::signMessage(
