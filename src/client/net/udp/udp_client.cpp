@@ -3,6 +3,8 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/client/net/udp/udp_client.hpp>
+#include <thread>
+#include <chrono>
 
 namespace ColumnLynx::Net::UDP {
     void UDPClient::start() {
@@ -102,7 +104,12 @@ namespace ColumnLynx::Net::UDP {
                 if (ec) {
                     if (ec == asio::error::operation_aborted) return; // Socket closed
                     // Other recv error
-                    mStartReceive();
+                    Utils::warn("UDPClient receive error: " + ec.message());
+                    // Back off briefly before restarting receive to avoid busy error loops
+                    asio::post(mSocket.get_executor(), [this]() {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        mStartReceive();
+                    });
                     return;
                 }
 

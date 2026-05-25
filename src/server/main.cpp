@@ -213,8 +213,13 @@ int main(int argc, char** argv) {
             // First, check if destination IP is a registered client (e.g., server responding to client or client-to-client)
             auto dstSession = SessionRegistry::getInstance().getByIP(dstIP);
             if (dstSession) {
-                // Destination is a registered client, forward to that client's session
-                udpServer->sendData(dstSession->sessionID, std::string(packet.begin(), packet.end()));
+                // Destination is a registered client, enforce MTU and forward to that client's session
+                const size_t MTU = 1420; // Enforce configured MTU; TODO: read from server config
+                if (packet.size() > MTU) {
+                    Utils::warn("TUN: Dropping oversized packet (" + std::to_string(packet.size()) + " > MTU " + std::to_string(MTU) + ")");
+                } else {
+                    udpServer->sendData(dstSession->sessionID, std::string(packet.begin(), packet.end()));
+                }
                 continue;
             }
 

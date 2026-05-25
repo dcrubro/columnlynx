@@ -213,8 +213,8 @@ static bool runCommand(const std::vector<std::string>& args) {
         pfd.fd = mFd;
         pfd.events = POLLIN;
 
-        // timeout in ms; keep it small so shutdown is responsive
-        int ret = poll(&pfd, 1, 200);
+        // timeout in ms; keep it small so shutdown is responsive. Reduced for lower latency.
+        int ret = poll(&pfd, 1, 50);
 
         if (ret == 0) {
             // No data yet

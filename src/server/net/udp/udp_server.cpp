@@ -95,7 +95,23 @@ namespace ColumnLynx::Net::UDP {
         UDPPacketHeader hdr{};
         uint8_t nonce[12];
         uint32_t prefix = session->noncePrefix;
-        uint64_t sendCount = const_cast<SessionState*>(session.get())->send_ctr.fetch_add(1, std::memory_order_relaxed);
+            // Increment send counter with overflow protection
+            uint64_t sendCount = 0;
+            {
+                auto ptr = const_cast<SessionState*>(session.get());
+                uint64_t old = ptr->send_ctr.load(std::memory_order_relaxed);
+                for (;;) {
+                    if (old == std::numeric_limits<uint64_t>::max()) {
+                        Utils::error("UDP: send counter overflow for session " + std::to_string(sessionID));
+                        return;
+                    }
+                    if (ptr->send_ctr.compare_exchange_weak(old, old + 1, std::memory_order_relaxed)) {
+                        sendCount = old;
+                        break;
+                    }
+                    // old updated by compare_exchange_weak, loop
+                }
+            }
         memcpy(nonce, &prefix, sizeof(uint32_t)); // Prefix nonce
         memcpy(nonce + sizeof(uint32_t), &sendCount, sizeof(uint64_t)); // Use send count as nonce suffix to ensure uniqueness
         std::copy_n(nonce, 12, hdr.nonce.data());
