@@ -6,6 +6,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <filesystem>
 #include <cstring>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
@@ -91,10 +92,9 @@ int main(int argc, char** argv) {
         serverState.configPath = configPath;
 
 #if defined(DEBUG)
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
+    std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
 #else
-        // A production server should never use random keys. If the config file cannot be read or does not contain keys, the server will fail to start.
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK", "SERVER_PUBLIC_KEY", "SERVER_PRIVATE_KEY" });
+    std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
 #endif
 
         serverState.serverConfig = config;
@@ -105,30 +105,28 @@ int main(int argc, char** argv) {
         // Store a reference to the tun in the serverState, it will increment and keep a safe reference (we love shared_ptrs)
         serverState.virtualInterface = tun;
 
-        // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
 
-        auto itPubkey = config.find("SERVER_PUBLIC_KEY");
-        auto itPrivkey = config.find("SERVER_PRIVATE_KEY");
+        const std::string serverPublicKeyPath = configPath + "public.key";
+        const std::string serverPrivateKeyPath = configPath + "private.key";
 
-        if (itPubkey != config.end() && itPrivkey != config.end()) {
-            log("Loading keypair from config file.");
+        namespace fs = std::filesystem;
+        bool serverKeyFilesPresent = fs::exists(serverPublicKeyPath) && fs::exists(serverPrivateKeyPath);
+        if (serverKeyFilesPresent) {
+            log("Loading server keypair from key files.");
 
-            PublicKey pk;
-            PrivateSeed seed;
-
-            std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), seed.size(), seed.begin());
-            std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
+            PublicKey pk = Utils::loadHexArrayFromFile<crypto_sign_PUBLICKEYBYTES>(serverPublicKeyPath, "server public key");
+            PrivateSeed seed = Utils::loadHexArrayFromFile<crypto_sign_SEEDBYTES>(serverPrivateKeyPath, "server private key", true);
 
             if (!sodiumWrapper->recomputeKeys(seed, pk)) {
-                throw std::runtime_error("Failed to recompute keypair from config file values!");
+                throw std::runtime_error("Failed to recompute keypair from key files!");
             }
         } else {
-            #if defined(DEBUG)
-            warn("No keypair found in config file! Using random key.");
-            #else
-            throw std::runtime_error("No keypair found in config file! Cannot start server without keys.");
-            #endif
+#if defined(DEBUG)
+            warn("No server keypair files found! Using random key.");
+#else
+            throw std::runtime_error("No server keypair files found! Cannot start server without keys.");
+#endif
         }
 
         log("Server public key: " + bytesToHexString(sodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES));

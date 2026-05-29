@@ -127,6 +127,28 @@ int main(int argc, char** argv) {
         initialState.virtualInterface = tun;
 
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
+        const std::string clientPublicKeyPath = configPath + "public.key";
+        const std::string clientPrivateKeyPath = configPath + "private.key";
+
+        namespace fs = std::filesystem;
+        bool clientKeyFilesPresent = fs::exists(clientPublicKeyPath) && fs::exists(clientPrivateKeyPath);
+        if (clientKeyFilesPresent) {
+            Utils::log("Loading client keypair from key files.");
+
+            PublicKey pk = Utils::loadHexArrayFromFile<crypto_sign_PUBLICKEYBYTES>(clientPublicKeyPath, "client public key");
+            PrivateSeed seed = Utils::loadHexArrayFromFile<crypto_sign_SEEDBYTES>(clientPrivateKeyPath, "client private key", true);
+
+            if (!sodiumWrapper->recomputeKeys(seed, pk)) {
+                throw std::runtime_error("Failed to recompute client keypair from key files!");
+            }
+        } else {
+#if defined(DEBUG)
+            Utils::warn("No client keypair files found! Using random key.");
+#else
+            throw std::runtime_error("No client keypair files found! Cannot start client without keys.");
+#endif
+        }
+
         debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper->getPublicKey(), 32));
         debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper->getPrivateKey(), 64));
         initialState.sodiumWrapper = sodiumWrapper;

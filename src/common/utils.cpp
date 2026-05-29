@@ -4,6 +4,7 @@
 
 #include <columnlynx/common/utils.hpp>
 #include <filesystem>
+#include <cctype>
 
 namespace ColumnLynx::Utils {
     std::string unixMillisToISO8601(uint64_t unixMillis, bool local) {
@@ -86,7 +87,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "1.1.1";
+        return "1.2.0";
     }
 
     unsigned short serverPort() {
@@ -250,5 +251,79 @@ namespace ColumnLynx::Utils {
         }
 
         return config;
+    }
+
+    std::vector<uint8_t> loadHexBytesFromFile(const std::string& path, size_t expectedBytes, const std::string& description, bool warnOnInsecurePermissions) {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+
+        fs::path p(path);
+        fs::path abs = fs::absolute(p, ec);
+        if (ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): failed to resolve path: " + path + " - " + ec.message());
+        }
+
+        if (!fs::exists(abs, ec) || ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): file does not exist: " + abs.string());
+        }
+
+        fs::path canon = fs::canonical(abs, ec);
+        if (ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): failed to canonicalize path: " + abs.string());
+        }
+
+#ifndef _WIN32
+        if (warnOnInsecurePermissions) {
+            ec.clear();
+            fs::file_status status = fs::status(canon, ec);
+            if (ec) {
+                warn("loadHexBytesFromFile(): failed to inspect permissions for " + canon.string() + " - " + ec.message());
+            } else {
+                auto perms = status.permissions();
+                if ((perms & (fs::perms::group_all | fs::perms::others_all)) != fs::perms::none) {
+                    warn(description + " file permissions are too permissive: " + canon.string() + " (recommend chmod 600)");
+                }
+
+                if (!fs::is_regular_file(status)) {
+                    warn(description + " path is not a regular file: " + canon.string());
+                }
+            }
+        }
+#endif
+
+        std::ifstream file(canon);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open " + description + " file at path: " + canon.string());
+        }
+
+        std::string hex((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        auto trim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+                s.pop_back();
+            }
+
+            size_t start = 0;
+            while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+                ++start;
+            }
+
+            if (start > 0) {
+                s.erase(0, start);
+            }
+        };
+
+        trim(hex);
+
+        if (hex.empty()) {
+            throw std::runtime_error(description + " file is empty: " + canon.string());
+        }
+
+        std::vector<uint8_t> bytes = hexStringToBytes(hex);
+        if (bytes.size() != expectedBytes) {
+            throw std::runtime_error(description + " file must contain exactly " + std::to_string(expectedBytes * 2) + " hex characters (" + std::to_string(expectedBytes) + " bytes), got " + std::to_string(bytes.size()) + " bytes");
+        }
+
+        return bytes;
     }
 }

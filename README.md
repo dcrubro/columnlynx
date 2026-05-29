@@ -55,7 +55,22 @@ openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 32
 # Output example: 1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
 ```
 
-You can then set these keys accordingly in the **server_config** and **client_config** files.
+Write the hex output into two separate files in the matching config directory:
+
+- `public.key` for the public key
+- `private.key` for the private key seed
+
+The files should contain only the hex ASCII characters, optionally followed by a trailing newline. Hex parsing is case-insensitive.
+
+For example:
+
+```bash
+printf '%s' '1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e' > /etc/columnlynx/public.key
+printf '%s' '9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e' > /etc/columnlynx/private.key
+chmod 600 /etc/columnlynx/private.key
+```
+
+On Unix-like systems, the software will warn if the private key file is too permissive and recommend tightening it with `chmod 600`.
 
 ### Server Setup (Linux Server ONLY)
 
@@ -157,19 +172,18 @@ sudo nft add rule nat postroute ip saddr 10.10.0.0/24 oifname "eth0" masquerade
  
 "**server_config**" is a file that contains the server configuration, **one variable per line**. These are the current configuration available variables:
 
-- **SERVER_PUBLIC_KEY** (Hex String): The public key to be used - Used for verification
-- **SERVER_PRIVATE_KEY** (Hex String): The private key seed to be used
 - **NETWORK** (IPv4 Format): The network IPv4 to be used (Server Interface still needs to be configured manually)
 - **SUBNET_MASK** (Integer): The subnet mask to be used (ensure proper length, it will not be checked)
 
 **Example:**
 
 ```
-SERVER_PUBLIC_KEY=1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
-SERVER_PRIVATE_KEY=9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e
 NETWORK=10.10.0.0
 SUBNET_MASK=24
 ```
+
+The server keypair must now live in the same directory as `server_config`, stored in `public.key` and `private.key`.
+`server_config` no longer stores key material.
 
 <hr></hr>
 
@@ -184,17 +198,9 @@ SUBNET_MASK=24
 
 ### Client
  
-"**client_config**" is a file that contains the client configuration, **one variable per line**. These are the current configuration available variables:
+"**client_config**" is a file that contains the client configuration, **one variable per line**. Key material is no longer stored here; if you do not have any client-only settings yet, this file can stay empty.
 
-- **CLIENT_PUBLIC_KEY** (Hex String): The public key to be used - Used for verification
-- **CLIENT_PRIVATE_KEY** (Hex String): The private key seed to be used
-
-**Example:**
-
-```
-CLIENT_PUBLIC_KEY=1c9d4f7a3b2e8a6d0f5c9b1e4d8a7f3c6e2b1a9d5f4c8e0a7b3d6c9f2e
-CLIENT_PRIVATE_KEY=9f3a2b6c0f8e4d1a7c3e9a4b5d2f8c6e1a9d0b7e3f4c2a8e6d5b1f0a3c4e
-```
+The client keypair must now live in the same directory as `client_config`, stored in `public.key` and `private.key`.
 
 <hr></hr>
 

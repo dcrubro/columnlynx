@@ -6,6 +6,20 @@
 //#include <arpa/inet.h>
 
 namespace ColumnLynx::Net::TCP {
+    TCPClient::TCPClient(asio::io_context& ioContext, const std::string& host, const std::string& port)
+        : mResolver(ioContext),
+          mSocket(ioContext),
+          mHost(host),
+          mPort(port),
+          mHeartbeatTimer(mSocket.get_executor()),
+          mLastHeartbeatReceived(std::chrono::steady_clock::now()),
+          mLastHeartbeatSent(std::chrono::steady_clock::now())
+    {
+        if (!ClientSession::getInstance().getSodiumWrapper()) {
+            throw std::runtime_error("ClientSession sodium wrapper is not initialized");
+        }
+    }
+
     void TCPClient::start() {
         auto self = shared_from_this();
         mResolver.async_resolve(mHost, mPort,

@@ -14,7 +14,6 @@
 #include <atomic>
 #include <algorithm>
 #include <vector>
-#include <unordered_map>
 #include <string>
 #include <columnlynx/common/net/protocol_structs.hpp>
 #include <columnlynx/common/net/virtual_interface.hpp>
@@ -27,48 +26,7 @@ namespace ColumnLynx::Net::TCP {
         public:
             TCPClient(asio::io_context& ioContext,
                       const std::string& host,
-                      const std::string& port)
-                :
-                mResolver(ioContext),
-                mSocket(ioContext),
-                mHost(host),
-                mPort(port),
-                mHeartbeatTimer(mSocket.get_executor()),
-                mLastHeartbeatReceived(std::chrono::steady_clock::now()),
-                mLastHeartbeatSent(std::chrono::steady_clock::now())
-            {
-                // Get initial client config
-                std::string configPath = ClientSession::getInstance().getConfigPath();
-                std::shared_ptr<Utils::LibSodiumWrapper> mLibSodiumWrapper = ClientSession::getInstance().getSodiumWrapper();
-
-                // Preload the config map
-                mRawClientConfig = Utils::getConfigMap(configPath + "client_config");
-
-                auto itPubkey = mRawClientConfig.find("CLIENT_PUBLIC_KEY");
-                auto itPrivkey = mRawClientConfig.find("CLIENT_PRIVATE_KEY");
-
-                if (itPubkey != mRawClientConfig.end() && itPrivkey != mRawClientConfig.end()) {
-                    Utils::log("Loading keypair from config file.");
-                
-                    PublicKey pk;
-                    PrivateSeed seed;
-                
-                    std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), seed.size(), seed.begin()); // This is extremely stupid, but the C++ compiler has forced my hand (I would've just used to_array, but fucking asio decls)
-                    std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
-                
-                    if (!mLibSodiumWrapper->recomputeKeys(seed, pk)) {
-                        throw std::runtime_error("Failed to recompute keypair from config file values!");
-                    }
-
-                    Utils::debug("Newly-Loaded Public Key: " + Utils::bytesToHexString(mLibSodiumWrapper->getPublicKey(), 32));
-                } else {
-                    #if defined(DEBUG)
-                    Utils::warn("No keypair found in config file! Using random key.");
-                    #else
-                    throw std::runtime_error("No keypair found in config file! Cannot start client without keys.");
-                    #endif
-                }
-            }
+                      const std::string& port);
 
             // Starts the TCP Client and initiaties the handshake
             void start();
@@ -106,6 +64,5 @@ namespace ColumnLynx::Net::TCP {
             int mMissedHeartbeats = 0;
             bool mIsHostDomain;
             Protocol::TunConfig mTunConfig;
-            std::unordered_map<std::string, std::string> mRawClientConfig;
     };
 }
