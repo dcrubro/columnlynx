@@ -44,6 +44,7 @@ namespace ColumnLynx::Net::UDP {
         }
         
         Utils::log("UDP Client ready to send to " + mRemoteEndpoint.address().to_string() + ":" + std::to_string(mRemoteEndpoint.port()));
+        mStartReceive();
     }
 
     void UDPClient::sendMessage(const std::string& data) {

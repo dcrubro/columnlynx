@@ -7,17 +7,22 @@
 namespace ColumnLynx::Net {
     void SessionRegistry::put(uint32_t sessionID, std::shared_ptr<SessionState> state) {
         std::unique_lock lock(mMutex);
+        // If replacing an existing entry, evict its old IP mapping first.
+        auto existing = mSessions.find(sessionID);
+        if (existing != mSessions.end() && existing->second) {
+            mIPSessions.erase(existing->second->clientTunIP);
+        }
         mSessions[sessionID] = std::move(state);
         mIPSessions[mSessions[sessionID]->clientTunIP] = mSessions[sessionID];
     }
 
-    std::shared_ptr<const SessionState> SessionRegistry::get(uint32_t sessionID) const {
+    std::shared_ptr<SessionState> SessionRegistry::get(uint32_t sessionID) const {
         std::shared_lock lock(mMutex);
         auto it = mSessions.find(sessionID);
         return (it == mSessions.end()) ? nullptr : it->second;
     }
 
-    std::shared_ptr<const SessionState> SessionRegistry::getByIP(uint32_t ip) const {
+    std::shared_ptr<SessionState> SessionRegistry::getByIP(uint32_t ip) const {
         std::shared_lock lock(mMutex);
         auto it = mIPSessions.find(ip);
         return (it == mIPSessions.end()) ? nullptr : it->second;
@@ -87,7 +92,9 @@ namespace ColumnLynx::Net {
     uint32_t SessionRegistry::getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
         std::shared_lock lock(mMutex);
 
+        if (mask == 0 || mask >= 32) return 0; // degenerate subnet
         uint32_t hostCount = (1u << (32 - mask));
+        if (hostCount < 3) return 0; // no assignable host addresses
         uint32_t firstHost = 2;
         uint32_t lastHost  = hostCount - 2;
 

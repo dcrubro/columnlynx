@@ -40,7 +40,7 @@ namespace ColumnLynx::Net::UDP {
         std::vector<uint8_t> encryptedPayload(it, mRecvBuffer.begin() + bytes);
 
         // Get associated session state
-        std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
+        std::shared_ptr<SessionState> session = SessionRegistry::getInstance().get(sessionID);
 
         if (!session) {
             Utils::warn("UDP: Unknown or invalid session from " + mRemoteEndpoint.address().to_string());
@@ -60,9 +60,9 @@ namespace ColumnLynx::Net::UDP {
 
             Utils::debug("Passed decryption");
 
-            const_cast<SessionState*>(session.get())->setUDPEndpoint(mRemoteEndpoint); // Update endpoint after confirming decryption
+            session->setUDPEndpoint(mRemoteEndpoint); // Update endpoint after confirming decryption
             // Update recv counter
-            const_cast<SessionState*>(session.get())->recv_ctr.fetch_add(1, std::memory_order_relaxed);
+            session->recv_ctr.fetch_add(1, std::memory_order_relaxed);
 
             // For now, just log the decrypted payload
             std::string payloadStr(plaintext.begin(), plaintext.end());
@@ -79,7 +79,7 @@ namespace ColumnLynx::Net::UDP {
 
     void UDPServer::sendData(uint32_t sessionID, const std::string& data) {
         // Find the IPv4/IPv6 endpoint for the session
-        std::shared_ptr<const SessionState> session = SessionRegistry::getInstance().get(sessionID);
+        std::shared_ptr<SessionState> session = SessionRegistry::getInstance().get(sessionID);
         if (!session) {
             Utils::warn("UDP: Cannot send data, unknown session ID " + std::to_string(sessionID));
             return;
@@ -98,14 +98,13 @@ namespace ColumnLynx::Net::UDP {
             // Increment send counter with overflow protection
             uint64_t sendCount = 0;
             {
-                auto ptr = const_cast<SessionState*>(session.get());
-                uint64_t old = ptr->send_ctr.load(std::memory_order_relaxed);
+                uint64_t old = session->send_ctr.load(std::memory_order_relaxed);
                 for (;;) {
                     if (old == std::numeric_limits<uint64_t>::max()) {
                         Utils::error("UDP: send counter overflow for session " + std::to_string(sessionID));
                         return;
                     }
-                    if (ptr->send_ctr.compare_exchange_weak(old, old + 1, std::memory_order_relaxed)) {
+                    if (session->send_ctr.compare_exchange_weak(old, old + 1, std::memory_order_relaxed)) {
                         sendCount = old;
                         break;
                     }

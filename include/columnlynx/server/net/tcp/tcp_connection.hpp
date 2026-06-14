@@ -53,6 +53,9 @@ namespace ColumnLynx::Net::TCP {
                 :
                 mHandler(std::make_shared<MessageHandler>(std::move(socket))),
                 mHeartbeatTimer(mHandler->socket().get_executor()),
+                mConnectionAESKey{},
+                mConnectionSessionID(0),
+                mConnectionPublicKey{},
                 mLastHeartbeatReceived(std::chrono::steady_clock::now()),
                 mLastHeartbeatSent(std::chrono::steady_clock::now())
             {}

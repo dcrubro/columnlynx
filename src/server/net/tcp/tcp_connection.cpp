@@ -229,17 +229,32 @@ namespace ColumnLynx::Net::TCP {
                     std::memcpy(mConnectionAESKey.data(), decrypted.data(), decrypted.size());
 
                     // Make a Session ID - unique and not zero (zero is reserved for invalid sessions)
-                    do {
-                        randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
-                    } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0); // Regenerate if it already exists or is zero (zero is reserved for invalid sessions)
+                    {
+                        int idAttempts = 0;
+                        do {
+                            if (++idAttempts > 16) {
+                                Utils::error("Failed to generate unique session ID after 16 attempts. Killing connection from " + reqAddr);
+                                disconnect();
+                                return;
+                            }
+                            randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                        } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0);
+                    }
 
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
                     const auto& serverConfig = ServerSession::getInstance().getRawServerConfig();
 
-                    std::string networkString = serverConfig.find("NETWORK")->second; // The load check guarantees that this value exists
-                    uint8_t configMask = std::stoi(serverConfig.find("SUBNET_MASK")->second); // Same deal here
+                    auto netIt  = serverConfig.find("NETWORK");
+                    auto maskIt = serverConfig.find("SUBNET_MASK");
+                    if (netIt == serverConfig.end() || maskIt == serverConfig.end()) {
+                        Utils::error("Server config is missing NETWORK or SUBNET_MASK. Killing connection from " + reqAddr);
+                        disconnect();
+                        return;
+                    }
+                    std::string networkString = netIt->second;
+                    uint8_t configMask = static_cast<uint8_t>(std::stoi(maskIt->second));
 
                     uint32_t baseIP = Net::VirtualInterface::stringToIpv4(networkString);
 
@@ -281,7 +296,7 @@ namespace ColumnLynx::Net::TCP {
 
                     // Add to session registry
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
-                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
+                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(baseIP + 1), mConnectionSessionID);
                     session->setBaseNonce(); // Set it
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);

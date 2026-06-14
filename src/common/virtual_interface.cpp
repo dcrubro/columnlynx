@@ -58,6 +58,44 @@ static void InitializeWintun()
 #undef RESOLVE
 }
 
+// Run a command on Windows via CreateProcess (no shell — shell metacharacters in
+// arguments are not interpreted by cmd.exe).
+static bool runCommandWin32(const std::vector<std::string>& args) {
+    if (args.empty()) return false;
+
+    // Build a properly-quoted command line using Windows quoting rules.
+    std::string cmdLine;
+    for (size_t i = 0; i < args.size(); i++) {
+        if (i > 0) cmdLine += ' ';
+        bool needsQuote = args[i].find_first_of(" \t\"") != std::string::npos || args[i].empty();
+        if (needsQuote) {
+            cmdLine += '"';
+            for (char c : args[i]) {
+                if (c == '"') cmdLine += '\\';
+                cmdLine += c;
+            }
+            cmdLine += '"';
+        } else {
+            cmdLine += args[i];
+        }
+    }
+
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+
+    if (!CreateProcessA(nullptr, cmdLine.data(), nullptr, nullptr,
+                        FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        return false;
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return exitCode == 0;
+}
+
 #endif // _WIN32
 
 namespace ColumnLynx::Net {
@@ -116,8 +154,10 @@ static bool runCommand(const std::vector<std::string>& args) {
 
         struct ctl_info ctlInfo {};
         std::strncpy(ctlInfo.ctl_name, UTUN_CONTROL_NAME, sizeof(ctlInfo.ctl_name));
-        if (ioctl(mFd, CTLIOCGINFO, &ctlInfo) == -1)
+        if (ioctl(mFd, CTLIOCGINFO, &ctlInfo) == -1) {
+            close(mFd); mFd = -1;
             throw std::runtime_error("ioctl(CTLIOCGINFO) failed: " + std::string(strerror(errno)));
+        }
 
         struct sockaddr_ctl sc {};
         sc.sc_len = sizeof(sc);
@@ -127,9 +167,11 @@ static bool runCommand(const std::vector<std::string>& args) {
         sc.sc_unit = 0; // 0 = auto-assign next utunX
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
-            if (errno == EPERM)
+            int savedErrno = errno;
+            close(mFd); mFd = -1;
+            if (savedErrno == EPERM)
                 throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running with sudo)");
-            throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
+            throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(savedErrno)));
         }
 
         // Retrieve actual utun device name via UTUN_OPT_IFNAME
@@ -351,20 +393,10 @@ static bool runCommand(const std::vector<std::string>& args) {
         //);
         //system(cmd);
     #elif defined(_WIN32)
-        char cmd[512];
         // Remove any persistent routes associated with this interface
-        snprintf(cmd, sizeof(cmd),
-            "netsh routing ip delete persistentroute all name=\"%s\"",
-            mIfName.c_str()
-        );
-        system(cmd);
-        
+        runCommandWin32({"netsh", "routing", "ip", "delete", "persistentroute", "all", "name=" + mIfName});
         // Reset to DHCP
-        snprintf(cmd, sizeof(cmd),
-            "netsh interface ip set address name=\"%s\" dhcp",
-            mIfName.c_str()
-        );
-        system(cmd);
+        runCommandWin32({"netsh", "interface", "ip", "set", "address", "name=" + mIfName, "dhcp"});
     #endif
     }
 

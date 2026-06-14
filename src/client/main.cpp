@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
         debug("isDone flag: " + std::to_string(done));
         
         // Client is running
-        while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
+        while (client->isConnected() && !done) {
             //debug("Client connection flag: " + std::to_string(client->isConnected()));
             auto packet = tun->readPacket();
             /*if (!client->isConnected() || done) {

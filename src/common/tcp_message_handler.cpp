@@ -54,6 +54,12 @@ namespace ColumnLynx::Net::TCP {
                     mCurrentType = decodeMessageType(mHeader[0]);
 
                     uint16_t len = (mHeader[1] << 8) | mHeader[2];
+                    constexpr uint16_t MAX_MSG_BODY = 8192;
+                    if (len > MAX_MSG_BODY) {
+                        Utils::error("Incoming message body too large (" + std::to_string(len) + " > " + std::to_string(MAX_MSG_BODY) + "), closing connection.");
+                        if (mOnDisconnect) mOnDisconnect(asio::error::message_size);
+                        return;
+                    }
                     mReadBody(len);
                 } else {
                     if (!NetHelper::isExpectedDisconnect(ec)) {
