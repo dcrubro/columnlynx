@@ -6,6 +6,8 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <filesystem>
+#include <cstring>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/server/net/tcp/tcp_server.hpp>
@@ -90,10 +92,9 @@ int main(int argc, char** argv) {
         serverState.configPath = configPath;
 
 #if defined(DEBUG)
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
+    std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
 #else
-        // A production server should never use random keys. If the config file cannot be read or does not contain keys, the server will fail to start.
-        std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK", "SERVER_PUBLIC_KEY", "SERVER_PRIVATE_KEY" });
+    std::unordered_map<std::string, std::string> config = Utils::getConfigMap(configPath + "server_config", { "NETWORK", "SUBNET_MASK" });
 #endif
 
         serverState.serverConfig = config;
@@ -104,30 +105,28 @@ int main(int argc, char** argv) {
         // Store a reference to the tun in the serverState, it will increment and keep a safe reference (we love shared_ptrs)
         serverState.virtualInterface = tun;
 
-        // Generate a temporary keypair, replace with actual CA signed keys later (Note, these are stored in memory)
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
 
-        auto itPubkey = config.find("SERVER_PUBLIC_KEY");
-        auto itPrivkey = config.find("SERVER_PRIVATE_KEY");
+        const std::string serverPublicKeyPath = configPath + "public.key";
+        const std::string serverPrivateKeyPath = configPath + "private.key";
 
-        if (itPubkey != config.end() && itPrivkey != config.end()) {
-            log("Loading keypair from config file.");
+        namespace fs = std::filesystem;
+        bool serverKeyFilesPresent = fs::exists(serverPublicKeyPath) && fs::exists(serverPrivateKeyPath);
+        if (serverKeyFilesPresent) {
+            log("Loading server keypair from key files.");
 
-            PublicKey pk;
-            PrivateSeed seed;
-
-            std::copy_n(Utils::hexStringToBytes(itPrivkey->second).begin(), seed.size(), seed.begin());
-            std::copy_n(Utils::hexStringToBytes(itPubkey->second).begin(), pk.size(), pk.begin());
+            PublicKey pk = Utils::loadHexArrayFromFile<crypto_sign_PUBLICKEYBYTES>(serverPublicKeyPath, "server public key");
+            PrivateSeed seed = Utils::loadHexArrayFromFile<crypto_sign_SEEDBYTES>(serverPrivateKeyPath, "server private key", true);
 
             if (!sodiumWrapper->recomputeKeys(seed, pk)) {
-                throw std::runtime_error("Failed to recompute keypair from config file values!");
+                throw std::runtime_error("Failed to recompute keypair from key files!");
             }
         } else {
-            #if defined(DEBUG)
-            warn("No keypair found in config file! Using random key.");
-            #else
-            throw std::runtime_error("No keypair found in config file! Cannot start server without keys.");
-            #endif
+#if defined(DEBUG)
+            warn("No server keypair files found! Using random key.");
+#else
+            throw std::runtime_error("No server keypair files found! Cannot start server without keys.");
+#endif
         }
 
         log("Server public key: " + bytesToHexString(sodiumWrapper->getPublicKey(), crypto_sign_PUBLICKEYBYTES));
@@ -144,6 +143,22 @@ int main(int argc, char** argv) {
         auto server = std::make_shared<TCPServer>(io, serverPort());
         auto udpServer = std::make_shared<UDPServer>(io, serverPort());
 
+        // Schedule periodic cleanup of expired sessions every 5 minutes
+        auto cleanupTimer = std::make_shared<asio::steady_timer>(io);
+        auto cleanupHandler = std::make_shared<std::function<void(const asio::error_code&)>>();
+        *cleanupHandler = [cleanupTimer, cleanupHandler](const asio::error_code& ec) {
+            if (ec == asio::error::operation_aborted) return; // Timer cancelled
+            try {
+                SessionRegistry::getInstance().cleanupExpired();
+            } catch (const std::exception& e) {
+                Utils::warn(std::string("SessionRegistry::cleanupExpired() threw: ") + e.what());
+            }
+            cleanupTimer->expires_after(std::chrono::minutes(5));
+            cleanupTimer->async_wait(*cleanupHandler);
+        };
+        cleanupTimer->expires_after(std::chrono::minutes(5));
+        cleanupTimer->async_wait(*cleanupHandler);
+
         asio::signal_set signals(io, SIGINT, SIGTERM);
         signals.async_wait([&](const std::error_code&, int) {
             log("Received termination signal. Shutting down server gracefully.");
@@ -152,6 +167,8 @@ int main(int argc, char** argv) {
                 ServerSession::getInstance().setHostRunning(false);
                 server->stop();
                 udpServer->stop();
+                // Cancel cleanup timer
+                cleanupTimer->cancel();
             });
         });
 
@@ -172,15 +189,35 @@ int main(int argc, char** argv) {
                 continue;
             }
 
+            if (packet.size() < 20) {
+                Utils::warn("TUN: Dropping packet smaller than IPv4 header (" + std::to_string(packet.size()) + " bytes)");
+                continue;
+            }
+
             const uint8_t* ip = packet.data();
-            uint32_t srcIP = ntohl(*(uint32_t*)(ip + 12)); // IPv4 source address offset
-            uint32_t dstIP = ntohl(*(uint32_t*)(ip + 16)); // IPv4 destination address offset
+            uint8_t ipVersion = (ip[0] >> 4);
+            if (ipVersion != 4) {
+                Utils::debug("TUN: Non-IPv4 packet received (version=" + std::to_string(ipVersion) + "), skipping server IPv4 routing path.");
+                continue;
+            }
+
+            uint32_t srcIPNet = 0;
+            uint32_t dstIPNet = 0;
+            std::memcpy(&srcIPNet, ip + 12, sizeof(srcIPNet)); // IPv4 source address offset
+            std::memcpy(&dstIPNet, ip + 16, sizeof(dstIPNet)); // IPv4 destination address offset
+            uint32_t srcIP = ntohl(srcIPNet);
+            uint32_t dstIP = ntohl(dstIPNet);
         
             // First, check if destination IP is a registered client (e.g., server responding to client or client-to-client)
             auto dstSession = SessionRegistry::getInstance().getByIP(dstIP);
             if (dstSession) {
-                // Destination is a registered client, forward to that client's session
-                udpServer->sendData(dstSession->sessionID, std::string(packet.begin(), packet.end()));
+                // Destination is a registered client, enforce MTU and forward to that client's session
+                const size_t MTU = 1420; // Enforce configured MTU; TODO: read from server config
+                if (packet.size() > MTU) {
+                    Utils::warn("TUN: Dropping oversized packet (" + std::to_string(packet.size()) + " > MTU " + std::to_string(MTU) + ")");
+                } else {
+                    udpServer->sendData(dstSession->sessionID, std::string(packet.begin(), packet.end()));
+                }
                 continue;
             }
 

@@ -14,23 +14,31 @@ namespace ColumnLynx::Net::TCP {
             Utils::warn("Failed to get remote endpoint: " + std::string(e.what()));
         }
 
-        mHandler->onMessage([this](AnyMessageType type, const std::string& data) {
-            mHandleMessage(static_cast<ClientMessageType>(MessageHandler::toUint8(type)), data);
+        mHandler->onMessage([weakSelf = weak_from_this()](AnyMessageType type, const std::string& data) {
+            if (auto self = weakSelf.lock()) {
+                self->mHandleMessage(static_cast<ClientMessageType>(MessageHandler::toUint8(type)), data);
+            }
         });
 
-        mHandler->onDisconnect([this](const asio::error_code& ec) {
+        mHandler->onDisconnect([weakSelf = weak_from_this()](const asio::error_code& ec) {
+            auto self = weakSelf.lock();
+            if (!self) {
+                return;
+            }
             // Peer has closed; finalize locally without sending RST
-            Utils::log("Client disconnected: " + mRemoteIP + " - " + ec.message());
+            Utils::log("Client disconnected: " + self->mRemoteIP + " - " + ec.message());
             asio::error_code ec2;
-            mHandler->socket().close(ec2);
+            if (self->mHandler) {
+                self->mHandler->socket().close(ec2);
+            }
 
-            SessionRegistry::getInstance().erase(mConnectionSessionID);
-            SessionRegistry::getInstance().deallocIP(mConnectionSessionID);
+            SessionRegistry::getInstance().erase(self->mConnectionSessionID);
+            SessionRegistry::getInstance().deallocIP(self->mConnectionSessionID);
 
-            Utils::log("Closed connection to " + mRemoteIP);
+            Utils::log("Closed connection to " + self->mRemoteIP);
 
-            if (mOnDisconnect) {
-                mOnDisconnect(shared_from_this());
+            if (self->mOnDisconnect) {
+                self->mOnDisconnect(self);
             }
         });
 
@@ -77,7 +85,7 @@ namespace ColumnLynx::Net::TCP {
     void TCPConnection::mStartHeartbeat() {
         auto self = shared_from_this();
         mHeartbeatTimer.expires_after(std::chrono::seconds(5));
-        mHeartbeatTimer.async_wait([this, self](const asio::error_code& ec) {
+        mHeartbeatTimer.async_wait([self](const asio::error_code& ec) {
             if (ec == asio::error::operation_aborted) {
                 return; // Timer was cancelled
             }
@@ -90,10 +98,13 @@ namespace ColumnLynx::Net::TCP {
                 
                 // Remove socket forcefully, client is dead
                 asio::error_code ec;
-                mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-                mHandler->socket().close(ec);
+                if (self->mHandler) {
+                    self->mHandler->socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+                    self->mHandler->socket().close(ec);
+                }
 
                 SessionRegistry::getInstance().erase(self->mConnectionSessionID);
+                SessionRegistry::getInstance().deallocIP(self->mConnectionSessionID);
 
                 return;
             }
@@ -113,8 +124,8 @@ namespace ColumnLynx::Net::TCP {
             case ClientMessageType::HANDSHAKE_INIT: {
                 Utils::log("Received HANDSHAKE_INIT from " + reqAddr);
 
-                if (data.size() < 1 + crypto_box_PUBLICKEYBYTES) {
-                    Utils::warn("HANDSHAKE_INIT from " + reqAddr + " is too short.");
+                if (data.size() != 1 + crypto_sign_PUBLICKEYBYTES) {
+                    Utils::warn("HANDSHAKE_INIT from " + reqAddr + " has invalid size: " + std::to_string(data.size()));
                     disconnect();
                     return;
                 }
@@ -130,7 +141,7 @@ namespace ColumnLynx::Net::TCP {
                 Utils::log("Client protocol version " + std::to_string(clientProtoVer) + " accepted from " + reqAddr + ".");
 
                 PublicKey signPk;
-                std::memcpy(signPk.data(), data.data() + 1, std::min(data.size() - 1, sizeof(signPk)));
+                std::memcpy(signPk.data(), data.data() + 1, sizeof(signPk));
 
                 // We can safely store this without further checking, the client will need to send the encrypted AES key in a way where they must possess the corresponding private key anyways.
                 int r = crypto_sign_ed25519_pk_to_curve25519(mConnectionPublicKey.data(), signPk.data()); // Store the client's public encryption key key (for identification)
@@ -162,9 +173,15 @@ namespace ColumnLynx::Net::TCP {
             case ClientMessageType::HANDSHAKE_CHALLENGE: {
                 Utils::log("Received HANDSHAKE_CHALLENGE from " + reqAddr);
                 
-                // Convert to byte array
+                // Convert to byte array - require exact size
+                if (data.size() != 32) {
+                    Utils::warn("HANDSHAKE_CHALLENGE has invalid size: " + std::to_string(data.size()));
+                    disconnect();
+                    return;
+                }
+
                 uint8_t challengeData[32];
-                std::memcpy(challengeData, data.data(), std::min(data.size(), sizeof(challengeData)));
+                std::memcpy(challengeData, data.data(), sizeof(challengeData));
 
                 // Sign the challenge
                 Signature sig = Utils::LibSodiumWrapper::signMessage(
@@ -212,17 +229,32 @@ namespace ColumnLynx::Net::TCP {
                     std::memcpy(mConnectionAESKey.data(), decrypted.data(), decrypted.size());
 
                     // Make a Session ID - unique and not zero (zero is reserved for invalid sessions)
-                    do {
-                        randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
-                    } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0); // Regenerate if it already exists or is zero (zero is reserved for invalid sessions)
+                    {
+                        int idAttempts = 0;
+                        do {
+                            if (++idAttempts > 16) {
+                                Utils::error("Failed to generate unique session ID after 16 attempts. Killing connection from " + reqAddr);
+                                disconnect();
+                                return;
+                            }
+                            randombytes_buf(&mConnectionSessionID, sizeof(mConnectionSessionID));
+                        } while (SessionRegistry::getInstance().exists(mConnectionSessionID) || mConnectionSessionID == 0);
+                    }
 
                     // Encrypt the Session ID with the established AES key (using symmetric encryption, nonce can be all zeros for this purpose)
                     Nonce symNonce{}; // All zeros
 
                     const auto& serverConfig = ServerSession::getInstance().getRawServerConfig();
 
-                    std::string networkString = serverConfig.find("NETWORK")->second; // The load check guarantees that this value exists
-                    uint8_t configMask = std::stoi(serverConfig.find("SUBNET_MASK")->second); // Same deal here
+                    auto netIt  = serverConfig.find("NETWORK");
+                    auto maskIt = serverConfig.find("SUBNET_MASK");
+                    if (netIt == serverConfig.end() || maskIt == serverConfig.end()) {
+                        Utils::error("Server config is missing NETWORK or SUBNET_MASK. Killing connection from " + reqAddr);
+                        disconnect();
+                        return;
+                    }
+                    std::string networkString = netIt->second;
+                    uint8_t configMask = static_cast<uint8_t>(std::stoi(maskIt->second));
 
                     uint32_t baseIP = Net::VirtualInterface::stringToIpv4(networkString);
 
@@ -264,7 +296,7 @@ namespace ColumnLynx::Net::TCP {
 
                     // Add to session registry
                     Utils::log("Handshake with " + reqAddr + " completed successfully. Session ID assigned (" + std::to_string(mConnectionSessionID) + ").");
-                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(0x0A0A0001), mConnectionSessionID);
+                    auto session = std::make_shared<SessionState>(mConnectionAESKey, std::chrono::hours(12), clientIP, htonl(baseIP + 1), mConnectionSessionID);
                     session->setBaseNonce(); // Set it
                     SessionRegistry::getInstance().put(mConnectionSessionID, std::move(session));
                     SessionRegistry::getInstance().lockIP(mConnectionSessionID, clientIP);

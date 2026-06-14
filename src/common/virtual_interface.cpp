@@ -4,6 +4,11 @@
 
 #include <columnlynx/common/net/virtual_interface.hpp>
 
+#include <spawn.h>
+#include <sys/wait.h>
+
+extern char **environ;
+
 // This is all fucking voodoo dark magic.
 
 #if defined(_WIN32)
@@ -53,9 +58,74 @@ static void InitializeWintun()
 #undef RESOLVE
 }
 
+// Run a command on Windows via CreateProcess (no shell — shell metacharacters in
+// arguments are not interpreted by cmd.exe).
+static bool runCommandWin32(const std::vector<std::string>& args) {
+    if (args.empty()) return false;
+
+    // Build a properly-quoted command line using Windows quoting rules.
+    std::string cmdLine;
+    for (size_t i = 0; i < args.size(); i++) {
+        if (i > 0) cmdLine += ' ';
+        bool needsQuote = args[i].find_first_of(" \t\"") != std::string::npos || args[i].empty();
+        if (needsQuote) {
+            cmdLine += '"';
+            for (char c : args[i]) {
+                if (c == '"') cmdLine += '\\';
+                cmdLine += c;
+            }
+            cmdLine += '"';
+        } else {
+            cmdLine += args[i];
+        }
+    }
+
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+
+    if (!CreateProcessA(nullptr, cmdLine.data(), nullptr, nullptr,
+                        FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        return false;
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return exitCode == 0;
+}
+
 #endif // _WIN32
 
 namespace ColumnLynx::Net {
+
+// Run a command without invoking a shell. Arguments are passed directly
+// to the underlying process to avoid shell injection vulnerabilities.
+static bool runCommand(const std::vector<std::string>& args) {
+    if (args.empty()) return false;
+
+    std::vector<char*> argv;
+    argv.reserve(args.size() + 1);
+    for (const auto &s : args) {
+        argv.push_back(const_cast<char*>(s.c_str()));
+    }
+    argv.push_back(nullptr);
+
+    pid_t pid;
+    int rc = posix_spawnp(&pid, argv[0], nullptr, nullptr, argv.data(), environ);
+    if (rc != 0) {
+        return false;
+    }
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) == -1) {
+        return false;
+    }
+
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
     // ------------------------------ Constructor ------------------------------
     VirtualInterface::VirtualInterface(const std::string& ifName)
         : mIfName(ifName), mFd(-1)
@@ -84,8 +154,10 @@ namespace ColumnLynx::Net {
 
         struct ctl_info ctlInfo {};
         std::strncpy(ctlInfo.ctl_name, UTUN_CONTROL_NAME, sizeof(ctlInfo.ctl_name));
-        if (ioctl(mFd, CTLIOCGINFO, &ctlInfo) == -1)
+        if (ioctl(mFd, CTLIOCGINFO, &ctlInfo) == -1) {
+            close(mFd); mFd = -1;
             throw std::runtime_error("ioctl(CTLIOCGINFO) failed: " + std::string(strerror(errno)));
+        }
 
         struct sockaddr_ctl sc {};
         sc.sc_len = sizeof(sc);
@@ -95,9 +167,11 @@ namespace ColumnLynx::Net {
         sc.sc_unit = 0; // 0 = auto-assign next utunX
 
         if (connect(mFd, (struct sockaddr*)&sc, sizeof(sc)) < 0) {
-            if (errno == EPERM)
+            int savedErrno = errno;
+            close(mFd); mFd = -1;
+            if (savedErrno == EPERM)
                 throw std::runtime_error("connect(AF_SYS_CONTROL) failed: Insufficient permissions (try running with sudo)");
-            throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(errno)));
+            throw std::runtime_error("connect(AF_SYS_CONTROL) failed: " + std::string(strerror(savedErrno)));
         }
 
         // Retrieve actual utun device name via UTUN_OPT_IFNAME
@@ -181,8 +255,8 @@ namespace ColumnLynx::Net {
         pfd.fd = mFd;
         pfd.events = POLLIN;
 
-        // timeout in ms; keep it small so shutdown is responsive
-        int ret = poll(&pfd, 1, 200);
+        // timeout in ms; keep it small so shutdown is responsive. Reduced for lower latency.
+        int ret = poll(&pfd, 1, 50);
 
         if (ret == 0) {
             // No data yet
@@ -307,25 +381,10 @@ namespace ColumnLynx::Net {
 
     void VirtualInterface::resetIP() {
     #if defined(__linux__)
-        char cmd[512];
-        snprintf(cmd, sizeof(cmd),
-                 "ip addr flush dev %s",
-                 mIfName.c_str()
-        );
-        system(cmd);
+        runCommand({"ip", "addr", "flush", "dev", mIfName});
     #elif defined(__APPLE__)
-        char cmd[512];
-        snprintf(cmd, sizeof(cmd),
-                 "ifconfig %s inet 0.0.0.0 delete",
-                 mIfName.c_str()
-        );
-        system(cmd);
-
-        snprintf(cmd, sizeof(cmd),
-                 "ifconfig %s inet6 :: delete",
-                 mIfName.c_str()
-        );
-        system(cmd);
+        runCommand({"ifconfig", mIfName, "inet", "0.0.0.0", "delete"});
+        runCommand({"ifconfig", mIfName, "inet6", "::", "delete"});
 
         // Wipe old routes
         //snprintf(cmd, sizeof(cmd),
@@ -334,20 +393,10 @@ namespace ColumnLynx::Net {
         //);
         //system(cmd);
     #elif defined(_WIN32)
-        char cmd[512];
         // Remove any persistent routes associated with this interface
-        snprintf(cmd, sizeof(cmd),
-            "netsh routing ip delete persistentroute all name=\"%s\"",
-            mIfName.c_str()
-        );
-        system(cmd);
-        
+        runCommandWin32({"netsh", "routing", "ip", "delete", "persistentroute", "all", "name=" + mIfName});
         // Reset to DHCP
-        snprintf(cmd, sizeof(cmd),
-            "netsh interface ip set address name=\"%s\" dhcp",
-            mIfName.c_str()
-        );
-        system(cmd);
+        runCommandWin32({"netsh", "interface", "ip", "set", "address", "name=" + mIfName, "dhcp"});
     #endif
     }
 
@@ -357,26 +406,19 @@ namespace ColumnLynx::Net {
     bool VirtualInterface::mApplyLinuxIP(uint32_t clientIP, uint32_t serverIP,
                                         uint8_t prefixLen, uint16_t mtu)
     {
-        char cmd[512];
     
         std::string ipStr = ipv4ToString(clientIP);
         std::string peerStr = ipv4ToString(serverIP);
     
         // Wipe the current config
-        snprintf(cmd, sizeof(cmd),
-                 "ip addr flush dev %s",
-                 mIfName.c_str()
-        );
-        system(cmd);
+        runCommand({"ip", "addr", "flush", "dev", mIfName});
 
-        snprintf(cmd, sizeof(cmd),
-                 "ip addr add %s/%d peer %s dev %s",
-                 ipStr.c_str(), prefixLen, peerStr.c_str(), mIfName.c_str());
-        system(cmd);
-    
-        snprintf(cmd, sizeof(cmd),
-                 "ip link set dev %s up mtu %d", mIfName.c_str(), mtu);
-        system(cmd);
+        // Add address with peer
+        std::string addrArg = ipStr + "/" + std::to_string(prefixLen);
+        runCommand({"ip", "addr", "add", addrArg, "peer", peerStr, "dev", mIfName});
+
+        // Bring link up and set MTU
+        runCommand({"ip", "link", "set", "dev", mIfName, "up", "mtu", std::to_string(mtu)});
     
         return true;
     }
@@ -387,39 +429,23 @@ namespace ColumnLynx::Net {
     bool VirtualInterface::mApplyMacOSIP(uint32_t clientIP, uint32_t serverIP,
                                         uint8_t prefixLen, uint16_t mtu)
     {
-        char cmd[512];
     
         std::string ipStr = ipv4ToString(clientIP);
         std::string peerStr = ipv4ToString(serverIP);
         std::string prefixStr = ipv4ToString(prefixLengthToNetmask(prefixLen), false);
         Utils::debug("Prefix string: " + prefixStr);
     
-        // Reset
-        snprintf(cmd, sizeof(cmd),
-                 "ifconfig %s inet 0.0.0.0 delete",
-                mIfName.c_str()
-        );
-        system(cmd);
+        // Reset IPv4 and IPv6 addresses
+        runCommand({"ifconfig", mIfName, "inet", "0.0.0.0", "delete"});
+        runCommand({"ifconfig", mIfName, "inet6", "::", "delete"});
 
-        snprintf(cmd, sizeof(cmd),
-                 "ifconfig %s inet6 :: delete",
-                mIfName.c_str()
-        );
-        system(cmd);
+        // Set address and netmask
+        std::string netArg = ipStr + " " + peerStr; // ifconfig expects ip peer
+        runCommand({"ifconfig", mIfName, "inet", ipStr, peerStr, "mtu", std::to_string(mtu), "netmask", prefixStr, "up"});
 
-        // Set
-        snprintf(cmd, sizeof(cmd),
-                "ifconfig %s inet %s %s mtu %d netmask %s up",
-                 mIfName.c_str(), ipStr.c_str(), peerStr.c_str(), mtu, prefixStr.c_str());
-        system(cmd);
-
-        // Host bits are auto-normalized by the kernel on macOS, so we don't need to worry about them not being zeroed out.
-        snprintf(cmd, sizeof(cmd),
-                 "route -n add -net %s/%d -interface %s",
-                 ipStr.c_str(), prefixLen, mIfName.c_str());
-        system(cmd);
-
-        Utils::log("Executed command: " + std::string(cmd));
+        // Add route for the network
+        std::string networkArg = ipStr + "/" + std::to_string(prefixLen);
+        runCommand({"route", "-n", "add", "-net", networkArg, "-interface", mIfName});
     
         return true;
     }

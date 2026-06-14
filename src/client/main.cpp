@@ -5,6 +5,7 @@
 #include <asio.hpp>
 #include <csignal>
 #include <iostream>
+#include <filesystem>
 #include <columnlynx/common/utils.hpp>
 #include <columnlynx/common/panic_handler.hpp>
 #include <columnlynx/client/net/tcp/tcp_client.hpp>
@@ -90,7 +91,20 @@ int main(int argc, char** argv) {
         std::string configPath = optionsObj["config-dir"].as<std::string>();
         const char* envConfigPath = std::getenv("COLUMNLYNX_CONFIG_DIR");
         if (envConfigPath != nullptr) {
-            configPath = std::string(envConfigPath);
+            // Validate and canonicalize environment-provided path
+            try {
+                namespace fs = std::filesystem;
+                std::error_code ec;
+                fs::path candidate(envConfigPath);
+                fs::path abs = fs::absolute(candidate, ec);
+                if (!ec) {
+                    configPath = abs.string();
+                } else {
+                    warn(std::string("Invalid COLUMNLYNX_CONFIG_DIR value: ") + envConfigPath + " - using default");
+                }
+            } catch (const std::exception& e) {
+                warn(std::string("Failed to canonicalize COLUMNLYNX_CONFIG_DIR: ") + e.what());
+            }
         }
 
         if (configPath.back() != '/' && configPath.back() != '\\') {
@@ -113,6 +127,28 @@ int main(int argc, char** argv) {
         initialState.virtualInterface = tun;
 
         std::shared_ptr<LibSodiumWrapper> sodiumWrapper = std::make_shared<LibSodiumWrapper>();
+        const std::string clientPublicKeyPath = configPath + "public.key";
+        const std::string clientPrivateKeyPath = configPath + "private.key";
+
+        namespace fs = std::filesystem;
+        bool clientKeyFilesPresent = fs::exists(clientPublicKeyPath) && fs::exists(clientPrivateKeyPath);
+        if (clientKeyFilesPresent) {
+            Utils::log("Loading client keypair from key files.");
+
+            PublicKey pk = Utils::loadHexArrayFromFile<crypto_sign_PUBLICKEYBYTES>(clientPublicKeyPath, "client public key");
+            PrivateSeed seed = Utils::loadHexArrayFromFile<crypto_sign_SEEDBYTES>(clientPrivateKeyPath, "client private key", true);
+
+            if (!sodiumWrapper->recomputeKeys(seed, pk)) {
+                throw std::runtime_error("Failed to recompute client keypair from key files!");
+            }
+        } else {
+#if defined(DEBUG)
+            Utils::warn("No client keypair files found! Using random key.");
+#else
+            throw std::runtime_error("No client keypair files found! Cannot start client without keys.");
+#endif
+        }
+
         debug("Public Key: " + Utils::bytesToHexString(sodiumWrapper->getPublicKey(), 32));
         debug("Private Key: " + Utils::bytesToHexString(sodiumWrapper->getPrivateKey(), 64));
         initialState.sodiumWrapper = sodiumWrapper;
@@ -148,7 +184,7 @@ int main(int argc, char** argv) {
         debug("isDone flag: " + std::to_string(done));
         
         // Client is running
-        while ((client->isConnected() || !client->isHandshakeComplete()) && !done) {
+        while (client->isConnected() && !done) {
             //debug("Client connection flag: " + std::to_string(client->isConnected()));
             auto packet = tun->readPacket();
             /*if (!client->isConnected() || done) {

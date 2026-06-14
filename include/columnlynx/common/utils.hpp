@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <algorithm>
-#include <bits/stdc++.h>
+
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -79,4 +79,15 @@ namespace ColumnLynx::Utils {
 
     // Returns the config file in an unordered_map format. This purely reads the config file, you still need to parse it manually.
     std::unordered_map<std::string, std::string> getConfigMap(std::string path, std::vector<std::string> requiredKeys = {});
+
+    // Load a hex-encoded file, validate its byte length, and return the decoded bytes.
+    std::vector<uint8_t> loadHexBytesFromFile(const std::string& path, size_t expectedBytes, const std::string& description = "key", bool warnOnInsecurePermissions = false);
+
+    template <size_t N>
+    inline std::array<uint8_t, N> loadHexArrayFromFile(const std::string& path, const std::string& description = "key", bool warnOnInsecurePermissions = false) {
+        auto bytes = loadHexBytesFromFile(path, N, description, warnOnInsecurePermissions);
+        std::array<uint8_t, N> out{};
+        std::copy_n(bytes.begin(), N, out.begin());
+        return out;
+    }
 };

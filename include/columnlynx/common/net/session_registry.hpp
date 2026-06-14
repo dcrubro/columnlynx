@@ -61,10 +61,10 @@ namespace ColumnLynx::Net {
             void put(uint32_t sessionID, std::shared_ptr<SessionState> state);
 
             // Lookup a session entry by session ID
-            std::shared_ptr<const SessionState> get(uint32_t sessionID) const;
+            std::shared_ptr<SessionState> get(uint32_t sessionID) const;
 
             // Lookup a session entry by IPv4
-            std::shared_ptr<const SessionState> getByIP(uint32_t ip) const;
+            std::shared_ptr<SessionState> getByIP(uint32_t ip) const;
 
             // Get a snapshot of the Session Registry
             std::unordered_map<uint32_t, std::shared_ptr<SessionState>> snapshot() const;

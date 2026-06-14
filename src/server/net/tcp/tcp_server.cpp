@@ -35,11 +35,15 @@ namespace ColumnLynx::Net::TCP {
                 auto client = TCPConnection::create(
                     std::move(socket),
                     [this](std::shared_ptr<TCPConnection> c) {
+                        std::lock_guard<std::mutex> lock(mClientsMutex);
                         mClients.erase(c);
                         Utils::log("Client removed.");
                     }
                 );
-                mClients.insert(client);
+                {
+                    std::lock_guard<std::mutex> lock(mClientsMutex);
+                    mClients.insert(client);
+                }
                 client->start();
                 Utils::log("Accepted new client connection.");
             
@@ -59,7 +63,11 @@ namespace ColumnLynx::Net::TCP {
         }
 
         // Snapshot to avoid iterator invalidation while callbacks erase()
-        std::vector<std::shared_ptr<TCPConnection>> snapshot(mClients.begin(), mClients.end());
+        std::vector<std::shared_ptr<TCPConnection>> snapshot;
+        {
+            std::lock_guard<std::mutex> lock(mClientsMutex);
+            snapshot.assign(mClients.begin(), mClients.end());
+        }
         for (auto &client : snapshot) {
             try {
                 client->disconnect(); // should shutdown+close the socket

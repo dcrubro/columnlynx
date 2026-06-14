@@ -3,6 +3,8 @@
 // Distributed under the terms of the GNU General Public License, either version 2 only or version 3. See LICENSES/ for details.
 
 #include <columnlynx/common/utils.hpp>
+#include <filesystem>
+#include <cctype>
 
 namespace ColumnLynx::Utils {
     std::string unixMillisToISO8601(uint64_t unixMillis, bool local) {
@@ -85,7 +87,7 @@ namespace ColumnLynx::Utils {
     }
 
     std::string getVersion() {
-        return "1.1.0";
+        return "1.2.1";
     }
 
     unsigned short serverPort() {
@@ -144,19 +146,49 @@ namespace ColumnLynx::Utils {
 
         std::vector<std::string> out;
 
-        std::ifstream file(basePath + "whitelisted_keys");
+        namespace fs = std::filesystem;
+        std::error_code ec;
+
+        fs::path base(basePath);
+        fs::path absBase = fs::absolute(base, ec);
+        if (ec) {
+            warn("getWhitelistedKeys(): failed to resolve base path: " + basePath + " - " + ec.message());
+            return out;
+        }
+
+        fs::path whitelist = absBase / "whitelisted_keys";
+        if (!fs::exists(whitelist, ec) || ec) {
+            warn("getWhitelistedKeys(): whitelist file not found: " + whitelist.string());
+            return out;
+        }
+
+        // Canonicalize to avoid symlink tricks
+        fs::path canon = fs::canonical(whitelist, ec);
+        if (ec) {
+            warn("getWhitelistedKeys(): failed to canonicalize path: " + whitelist.string());
+            return out;
+        }
+
+        std::ifstream file(canon);
         if (!file.is_open()) {
-            warn("Failed to open whitelisted_keys file at path: " + basePath + "whitelisted_keys");
+            warn("getWhitelistedKeys(): failed to open whitelist file: " + canon.string());
             return out;
         }
 
         std::string line;
         while (std::getline(file, line)) {
+            // Trim whitespace
+            while (!line.empty() && isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
+            size_t start = 0;
+            while (start < line.size() && isspace(static_cast<unsigned char>(line[start]))) ++start;
+            if (start >= line.size()) continue;
+            std::string key = line.substr(start);
+
             // Convert to upper case to align with the bytesToHexString() output
-            for (int i = 0; i < line.length(); i++) {
-                line[i] = toupper(line[i]);
+            for (size_t i = 0; i < key.length(); ++i) {
+                key[i] = static_cast<char>(toupper(static_cast<unsigned char>(key[i])));
             }
-            out.push_back(line);
+            out.push_back(key);
         }
 
         return out;
@@ -166,9 +198,26 @@ namespace ColumnLynx::Utils {
         // TODO: Currently re-reads every time.
         std::vector<std::string> readLines;
 
-        std::ifstream file(path);
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        fs::path p(path);
+        fs::path abs = fs::absolute(p, ec);
+        if (ec) {
+            throw std::runtime_error("getConfigMap(): failed to resolve path: " + path + " - " + ec.message());
+        }
+
+        if (!fs::exists(abs, ec) || ec) {
+            throw std::runtime_error("getConfigMap(): config file does not exist: " + abs.string());
+        }
+
+        fs::path canon = fs::canonical(abs, ec);
+        if (ec) {
+            throw std::runtime_error("getConfigMap(): failed to canonicalize config path: " + abs.string());
+        }
+
+        std::ifstream file(canon);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open config file at path: " + path);
+            throw std::runtime_error("Failed to open config file at path: " + canon.string());
         }
 
         std::string line;
@@ -202,5 +251,79 @@ namespace ColumnLynx::Utils {
         }
 
         return config;
+    }
+
+    std::vector<uint8_t> loadHexBytesFromFile(const std::string& path, size_t expectedBytes, const std::string& description, bool warnOnInsecurePermissions) {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+
+        fs::path p(path);
+        fs::path abs = fs::absolute(p, ec);
+        if (ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): failed to resolve path: " + path + " - " + ec.message());
+        }
+
+        if (!fs::exists(abs, ec) || ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): file does not exist: " + abs.string());
+        }
+
+        fs::path canon = fs::canonical(abs, ec);
+        if (ec) {
+            throw std::runtime_error("loadHexBytesFromFile(): failed to canonicalize path: " + abs.string());
+        }
+
+#ifndef _WIN32
+        if (warnOnInsecurePermissions) {
+            ec.clear();
+            fs::file_status status = fs::status(canon, ec);
+            if (ec) {
+                warn("loadHexBytesFromFile(): failed to inspect permissions for " + canon.string() + " - " + ec.message());
+            } else {
+                auto perms = status.permissions();
+                if ((perms & (fs::perms::group_all | fs::perms::others_all)) != fs::perms::none) {
+                    warn(description + " file permissions are too permissive: " + canon.string() + " (recommend chmod 600)");
+                }
+
+                if (!fs::is_regular_file(status)) {
+                    warn(description + " path is not a regular file: " + canon.string());
+                }
+            }
+        }
+#endif
+
+        std::ifstream file(canon);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open " + description + " file at path: " + canon.string());
+        }
+
+        std::string hex((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        auto trim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+                s.pop_back();
+            }
+
+            size_t start = 0;
+            while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+                ++start;
+            }
+
+            if (start > 0) {
+                s.erase(0, start);
+            }
+        };
+
+        trim(hex);
+
+        if (hex.empty()) {
+            throw std::runtime_error(description + " file is empty: " + canon.string());
+        }
+
+        std::vector<uint8_t> bytes = hexStringToBytes(hex);
+        if (bytes.size() != expectedBytes) {
+            throw std::runtime_error(description + " file must contain exactly " + std::to_string(expectedBytes * 2) + " hex characters (" + std::to_string(expectedBytes) + " bytes), got " + std::to_string(bytes.size()) + " bytes");
+        }
+
+        return bytes;
     }
 }

@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # If MAJOR is 0, and MINOR > 0, Version is BETA
 
 project(ColumnLynx
-    VERSION 1.1.0
+    VERSION 1.2.0
     LANGUAGES CXX
 )
 
@@ -173,3 +173,28 @@ install(FILES
 	LICENSES/GPL-2.0-only.txt
 	LICENSES/GPL-3.0.txt
         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME})
+
+# ---------------------------------------------------------
+# Unit tests
+# ---------------------------------------------------------
+option(BUILD_TESTS "Build unit tests" ON)
+
+if(BUILD_TESTS)
+    enable_testing()
+    file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS tests/*.cpp)
+    if(TEST_SRC)
+        foreach(TEST_FILE IN LISTS TEST_SRC)
+            get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+            add_executable(${TEST_NAME} ${TEST_FILE})
+            target_link_libraries(${TEST_NAME} PRIVATE common sodium)
+            target_include_directories(${TEST_NAME} PRIVATE 
+                ${PROJECT_SOURCE_DIR}/include
+                ${asio_SOURCE_DIR}/asio/include
+                ${sodium_SOURCE_DIR}/src/libsodium/include
+                ${sodium_BINARY_DIR}/src/libsodium/include
+            )
+            add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+            set_target_properties(${TEST_NAME} PROPERTIES OUTPUT_NAME "columnlynx_${TEST_NAME}")
+        endforeach()
+    endif()
+endif()

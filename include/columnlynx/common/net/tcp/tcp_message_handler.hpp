@@ -39,6 +39,6 @@ namespace ColumnLynx::Net::TCP {
             std::array<uint8_t, 3> mHeader{}; // [type][lenHigh][lenLow]
             std::vector<uint8_t> mBody;
             std::function<void(AnyMessageType, std::string)> mOnMessage;
-            std::function<void(asio::error_code&)> mOnDisconnect;
+            std::function<void(const asio::error_code&)> mOnDisconnect;
     };
 }

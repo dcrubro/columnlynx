@@ -7,17 +7,22 @@
 namespace ColumnLynx::Net {
     void SessionRegistry::put(uint32_t sessionID, std::shared_ptr<SessionState> state) {
         std::unique_lock lock(mMutex);
+        // If replacing an existing entry, evict its old IP mapping first.
+        auto existing = mSessions.find(sessionID);
+        if (existing != mSessions.end() && existing->second) {
+            mIPSessions.erase(existing->second->clientTunIP);
+        }
         mSessions[sessionID] = std::move(state);
         mIPSessions[mSessions[sessionID]->clientTunIP] = mSessions[sessionID];
     }
 
-    std::shared_ptr<const SessionState> SessionRegistry::get(uint32_t sessionID) const {
+    std::shared_ptr<SessionState> SessionRegistry::get(uint32_t sessionID) const {
         std::shared_lock lock(mMutex);
         auto it = mSessions.find(sessionID);
         return (it == mSessions.end()) ? nullptr : it->second;
     }
 
-    std::shared_ptr<const SessionState> SessionRegistry::getByIP(uint32_t ip) const {
+    std::shared_ptr<SessionState> SessionRegistry::getByIP(uint32_t ip) const {
         std::shared_lock lock(mMutex);
         auto it = mIPSessions.find(ip);
         return (it == mIPSessions.end()) ? nullptr : it->second;
@@ -32,7 +37,26 @@ namespace ColumnLynx::Net {
 
     void SessionRegistry::erase(uint32_t sessionID) {
         std::unique_lock lock(mMutex);
-        mSessions.erase(sessionID);
+        auto it = mSessions.find(sessionID);
+        if (it != mSessions.end()) {
+            // If the session has a client IP mapping, remove it to avoid stale entries
+            if (it->second) {
+                uint32_t ip = it->second->clientTunIP;
+                auto ipIt = mIPSessions.find(ip);
+                if (ipIt != mIPSessions.end()) {
+                    // Only erase if it points to the same session
+                    if (ipIt->second == it->second) {
+                        mIPSessions.erase(ipIt);
+                    }
+                }
+            }
+
+            // Remove any session->ip bookkeeping
+            mSessionIPs.erase(sessionID);
+
+            // Finally erase the session
+            mSessions.erase(it);
+        }
     }
 
     void SessionRegistry::cleanupExpired() {
@@ -68,7 +92,9 @@ namespace ColumnLynx::Net {
     uint32_t SessionRegistry::getFirstAvailableIP(uint32_t baseIP, uint8_t mask) const {
         std::shared_lock lock(mMutex);
 
+        if (mask == 0 || mask >= 32) return 0; // degenerate subnet
         uint32_t hostCount = (1u << (32 - mask));
+        if (hostCount < 3) return 0; // no assignable host addresses
         uint32_t firstHost = 2;
         uint32_t lastHost  = hostCount - 2;
 
@@ -85,11 +111,15 @@ namespace ColumnLynx::Net {
     void SessionRegistry::lockIP(uint32_t sessionID, uint32_t ip) {
         std::unique_lock lock(mMutex);
         mSessionIPs[sessionID] = ip;
-        
-        /*if (mIPSessions.find(sessionID) == mIPSessions.end()) {
-            Utils::debug("yikes");
-        }*/
-        mIPSessions[ip] = mSessions.find(sessionID)->second;
+
+        auto it = mSessions.find(sessionID);
+        if (it == mSessions.end() || !it->second) {
+            Utils::warn("SessionRegistry::lockIP called for unknown session " + std::to_string(sessionID));
+            mSessionIPs.erase(sessionID);
+            return;
+        }
+
+        mIPSessions[ip] = it->second;
     }
 
     void SessionRegistry::deallocIP(uint32_t sessionID) {

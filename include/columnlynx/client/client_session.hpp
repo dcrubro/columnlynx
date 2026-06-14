@@ -87,6 +87,10 @@ namespace ColumnLynx {
 
             void incrementSendCount() {
                 std::unique_lock lock(mMutex);
+                if (mClientState->send_cnt == std::numeric_limits<uint64_t>::max()) {
+                    Utils::error("ClientSession: send counter overflow detected");
+                    return;
+                }
                 mClientState->send_cnt++;
             }
 

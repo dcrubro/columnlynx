@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <mutex>
 #include <unordered_set>
 #include <new>
 #include <asio.hpp>
@@ -77,6 +78,7 @@ namespace ColumnLynx::Net::TCP {
             
             asio::io_context &mIoContext;
             asio::ip::tcp::acceptor mAcceptor;
+            std::mutex mClientsMutex;
             std::unordered_set<TCPConnection::pointer> mClients;
     };
 

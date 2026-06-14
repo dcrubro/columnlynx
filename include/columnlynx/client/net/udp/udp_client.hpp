@@ -20,7 +20,6 @@ namespace ColumnLynx::Net::UDP {
                       const std::string& port)
                 : mSocket(ioContext), mResolver(ioContext), mHost(host), mPort(port)
             {
-                mStartReceive(); 
             }
 
             // Start the UDP client
