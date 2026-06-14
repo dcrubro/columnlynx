@@ -182,15 +182,31 @@ int main(int argc, char** argv) {
         debug("Client connection flag: " + std::to_string(client->isConnected()));
         debug("Client handshake flag: " + std::to_string(client->isHandshakeComplete()));
         debug("isDone flag: " + std::to_string(done));
-        
-        // Client is running
+
+        // Phase 1: wait for the async TCP connect to succeed (or time out).
+        // isConnected() is set by the io_context thread once async_connect fires.
+        {
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+            while (!client->isConnected() && !done) {
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    error("Connection timed out after 30 seconds.");
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+        }
+
+        // Phase 2: packet-forwarding loop — runs while the TCP connection is alive.
+        // sendMessage() in the UDP client already guards against pre-handshake sends
+        // (it checks AES key / session ID), so entering here before the handshake
+        // finishes is harmless.
         while (client->isConnected() && !done) {
             //debug("Client connection flag: " + std::to_string(client->isConnected()));
             auto packet = tun->readPacket();
             /*if (!client->isConnected() || done) {
                 break; // Bail out if connection died or signal set while blocked
             }*/
-            
+
             if (packet.empty()) {
                 continue;
             }

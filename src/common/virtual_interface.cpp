@@ -443,9 +443,26 @@ static bool runCommand(const std::vector<std::string>& args) {
         std::string netArg = ipStr + " " + peerStr; // ifconfig expects ip peer
         runCommand({"ifconfig", mIfName, "inet", ipStr, peerStr, "mtu", std::to_string(mtu), "netmask", prefixStr, "up"});
 
-        // Add route for the network
-        std::string networkArg = ipStr + "/" + std::to_string(prefixLen);
+        // Compute the correct network address from the client IP and prefix length.
+        // Using the raw host IP (ipStr) here would create a host route for 10.10.0.2
+        // instead of the intended network route for 10.10.0.0/24, causing traffic
+        // destined for the peer (10.10.0.1) to miss this route entirely.
+        uint32_t rawMask = (prefixLen == 0) ? 0u : (0xFFFFFFFFu << (32 - prefixLen));
+        uint32_t networkIP = clientIP & rawMask;
+        std::string networkStr = ipv4ToString(networkIP);
+        std::string networkArg = networkStr + "/" + std::to_string(prefixLen);
+
+        // Delete stale routes first so we can (re)add cleanly.
+        // These are best-effort — failure just means the route didn't exist.
+        runCommand({"route", "-n", "delete", "-net",  networkArg});
+        runCommand({"route", "-n", "delete", "-host", peerStr});
+
+        // Add the VPN subnet route.
         runCommand({"route", "-n", "add", "-net", networkArg, "-interface", mIfName});
+
+        // Force an explicit host route for the peer so our utun wins over any
+        // competing /24 route that another tunnel may have installed.
+        runCommand({"route", "-n", "add", "-host", peerStr, "-interface", mIfName});
     
         return true;
     }

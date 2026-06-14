@@ -34,7 +34,7 @@ namespace ColumnLynx::Net::UDP {
         // Get plaintext session ID (first 4 bytes after header, in network byte order)
         uint32_t sessionIDNet = 0;
         std::memcpy(&sessionIDNet, mRecvBuffer.data() + sizeof(UDPPacketHeader), sizeof(uint32_t));
-        uint32_t sessionID = sessionIDNet; // ntohl(sessionIDNet); --- IGNORE ---
+        uint32_t sessionID = ntohl(sessionIDNet);
 
         auto it = mRecvBuffer.begin() + sizeof(UDPPacketHeader) + sizeof(uint32_t);
         std::vector<uint8_t> encryptedPayload(it, mRecvBuffer.begin() + bytes);
